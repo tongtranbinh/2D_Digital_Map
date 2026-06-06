@@ -1,0 +1,9 @@
+<!DOCTYPE RCC><RCC version="1.0">
+<qresource prefix="/">
+    <file>main.qml</file>
+    <file>MapComponent.qml</file>
+    <file>ShipMarker.qml</file>
+    <file>WarningZoneItem.qml</file>
+    <file>ShipDetailPanel.qml</file>
+</qresource>
+</RCC>
