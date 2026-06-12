@@ -1,0 +1,159 @@
+#include "ShipListModel.h"
+
+ShipListModel::ShipListModel(QObject *parent)
+    : QAbstractListModel(parent)
+{
+}
+
+int ShipListModel::rowCount(const QModelIndex &parent) const
+{
+    if (parent.isValid())
+        return 0;
+    return m_ships.size();
+}
+
+QVariant ShipListModel::data(const QModelIndex &index, int role) const
+{
+    if (!index.isValid() || index.row() < 0 || index.row() >= m_ships.size())
+        return QVariant();
+
+    const auto &ship = m_ships[index.row()];
+
+    switch (role) {
+    case ShipIdRole:
+        return ship.shipId.toString();
+    case NameRole:
+        return ship.name;
+    case MmsiRole:
+        return ship.mmsi;
+    case LatitudeRole:
+        return ship.latitude;
+    case LongitudeRole:
+        return ship.longitude;
+    case SpeedRole:
+        return ship.speed;
+    case HeadingRole:
+        return ship.heading;
+    case CourseRole:
+        return ship.course;
+    case TimestampRole:
+        return ship.timestamp;
+    case IsInsideZoneRole:
+        return ship.isInsideZone;
+    default:
+        return QVariant();
+    }
+}
+
+QHash<int, QByteArray> ShipListModel::roleNames() const
+{
+    QHash<int, QByteArray> roles;
+    roles[ShipIdRole] = "shipId";
+    roles[NameRole] = "vesselName";
+    roles[MmsiRole] = "mmsi";
+    roles[LatitudeRole] = "latitude";
+    roles[LongitudeRole] = "longitude";
+    roles[SpeedRole] = "speed";
+    roles[HeadingRole] = "heading";
+    roles[CourseRole] = "course";
+    roles[TimestampRole] = "timestamp";
+    roles[IsInsideZoneRole] = "isInsideZone";
+    return roles;
+}
+
+void ShipListModel::updateShipPositions(const QVector<ShipMessage> &positions,
+                                       const QHash<QUuid, Vessel> &vesselCache,
+                                       const QHash<QString, bool> &zoneStates,
+                                       const QVector<QUuid> &activeZones)
+{
+    for (const auto &msg : positions) {
+        // Kiểm tra xem tàu có đang ở trong vùng geofence nào không
+        bool isInside = false;
+        QString shipIdStr = msg.shipId.toString();
+        for (const auto &zoneId : activeZones) {
+            QString key = shipIdStr + "_" + zoneId.toString();
+            if (zoneStates.value(key, false)) {
+                isInside = true;
+                break;
+            }
+        }
+
+        if (m_shipIdToIndex.contains(msg.shipId)) {
+            // Cập nhật tàu đã tồn tại
+            int idx = m_shipIdToIndex[msg.shipId];
+            auto &ship = m_ships[idx];
+            ship.latitude = msg.latitude;
+            ship.longitude = msg.longitude;
+            ship.speed = msg.speed;
+            ship.heading = msg.heading;
+            ship.course = msg.course;
+            ship.timestamp = msg.timestamp;
+            ship.isInsideZone = isInside;
+
+            // Nếu tàu chưa có tên thật trong model, kiểm tra cache
+            if (ship.name.startsWith(QLatin1String("Unknown")) && vesselCache.contains(msg.shipId)) {
+                const auto &v = vesselCache[msg.shipId];
+                ship.name = v.name;
+                ship.mmsi = v.mmsi;
+            }
+
+            emit dataChanged(createIndex(idx, 0), createIndex(idx, 0));
+        } else {
+            // Thêm tàu mới
+            ShipDisplayData ship;
+            ship.shipId = msg.shipId;
+            ship.latitude = msg.latitude;
+            ship.longitude = msg.longitude;
+            ship.speed = msg.speed;
+            ship.heading = msg.heading;
+            ship.course = msg.course;
+            ship.timestamp = msg.timestamp;
+            ship.isInsideZone = isInside;
+
+            // Tìm thông tin tĩnh từ cache
+            if (vesselCache.contains(msg.shipId)) {
+                const auto &v = vesselCache[msg.shipId];
+                ship.name = v.name;
+                ship.mmsi = v.mmsi;
+            } else {
+                // Tạo thông tin tạm thời tương tự backend
+                ship.name = QStringLiteral("Vessel %1").arg(msg.shipId.toString().mid(1, 5).toUpper());
+                ship.mmsi = 100000000 + (qHash(msg.shipId) % 900000000);
+            }
+
+            beginInsertRows(QModelIndex(), m_ships.size(), m_ships.size());
+            m_ships.push_back(ship);
+            m_shipIdToIndex[msg.shipId] = m_ships.size() - 1;
+            endInsertRows();
+        }
+    }
+}
+
+QVariantMap ShipListModel::getShipAt(int index) const
+{
+    QVariantMap map;
+    if (index < 0 || index >= m_ships.size())
+        return map;
+
+    const auto &ship = m_ships[index];
+    map[QStringLiteral("shipId")] = ship.shipId.toString();
+    map[QStringLiteral("vesselName")] = ship.name;
+    map[QStringLiteral("mmsi")] = ship.mmsi;
+    map[QStringLiteral("latitude")] = ship.latitude;
+    map[QStringLiteral("longitude")] = ship.longitude;
+    map[QStringLiteral("speed")] = ship.speed;
+    map[QStringLiteral("heading")] = ship.heading;
+    map[QStringLiteral("course")] = ship.course;
+    map[QStringLiteral("timestamp")] = ship.timestamp;
+    map[QStringLiteral("isInsideZone")] = ship.isInsideZone;
+    return map;
+}
+
+int ShipListModel::findShipIndex(const QString &shipId) const
+{
+    QUuid uuid = QUuid::fromString(shipId);
+    if (uuid.isNull() && !shipId.isEmpty()) {
+        uuid = QUuid::fromString("{" + shipId + "}");
+    }
+    return m_shipIdToIndex.value(uuid, -1);
+}

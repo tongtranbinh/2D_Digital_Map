@@ -88,74 +88,70 @@ bool PositionRepository::insert(ShipMessage &position, QString *error)
 
 bool PositionRepository::insertBatch(const QVector<ShipMessage> &positions, QString *error)
 {
-	if (positions.isEmpty()) {
-		return true;
-	}
+    if (positions.isEmpty()) {
+        return true;
+    }
 
-	if (!m_connection.isOpen() && !m_connection.open(error)) {
-		return false;
-	}
+    if (!m_connection.isOpen() && !m_connection.open(error)) {
+        return false;
+    }
 
-	QSqlQuery query(m_connection.database());
-	query.prepare(R"(
-		INSERT INTO app.positions (id, vessel_id, recorded_at, latitude, longitude, speed_knots, course, heading, geom)
-		VALUES (
-			:id,
-			CAST(:vessel_id AS uuid),
-			COALESCE(:recorded_at, now()),
-			:latitude,
-			:longitude,
-			:speed_knots,
-			:course,
-			:heading,
-			ST_SetSRID(ST_MakePoint(:longitude, :latitude), 4326)::geography
-		)
-	)");
+    QSqlQuery query(m_connection.database());
 
-	QVariantList ids;
-	QVariantList vesselIds;
-	QVariantList recordedAts;
-	QVariantList latitudes;
-	QVariantList longitudes;
-	QVariantList speeds;
-	QVariantList courses;
-	QVariantList headings;
+    QStringList valuePlaceholders;
+    valuePlaceholders.reserve(positions.size());
 
-	ids.reserve(positions.size());
-	vesselIds.reserve(positions.size());
-	recordedAts.reserve(positions.size());
-	latitudes.reserve(positions.size());
-	longitudes.reserve(positions.size());
-	speeds.reserve(positions.size());
-	courses.reserve(positions.size());
-	headings.reserve(positions.size());
+    for (int i = 0; i < positions.size(); ++i) {
+        valuePlaceholders << QString(
+            "(:id%1, CAST(:vessel_id%1 AS uuid), COALESCE(:recorded_at%1, now()), "
+            ":latitude%1, :longitude%1, :speed%1, :course%1, :heading%1, "
+            "ST_SetSRID(ST_MakePoint(:longitude%1, :latitude%1), 4326)::geography)"
+        ).arg(i);
+    }
 
-	for (const ShipMessage &pos : positions) {
-		QUuid pid = pos.id.isNull() ? QUuid::createUuid() : pos.id;
-		ids << uuidToString(pid);
-		vesselIds << uuidToString(pos.shipId);
-		recordedAts << (pos.timestamp.isValid() ? pos.timestamp : QVariant());
-		latitudes << pos.latitude;
-		longitudes << pos.longitude;
-		speeds << pos.speed;
-		courses << pos.course;
-		headings << static_cast<int>(pos.heading);
-	}
+    QString sql = QString(R"(
+        INSERT INTO app.positions (
+            id,
+            vessel_id,
+            recorded_at,
+            latitude,
+            longitude,
+            speed_knots,
+            course,
+            heading,
+            geom
+        )
+        VALUES %1
+    )").arg(valuePlaceholders.join(","));
 
-	query.bindValue(QStringLiteral(":id"), ids);
-	query.bindValue(QStringLiteral(":vessel_id"), vesselIds);
-	query.bindValue(QStringLiteral(":recorded_at"), recordedAts);
-	query.bindValue(QStringLiteral(":latitude"), latitudes);
-	query.bindValue(QStringLiteral(":longitude"), longitudes);
-	query.bindValue(QStringLiteral(":speed_knots"), speeds);
-	query.bindValue(QStringLiteral(":course"), courses);
-	query.bindValue(QStringLiteral(":heading"), headings);
+    query.prepare(sql);
 
-	if (!query.execBatch()) {
-		return setError(error, query);
-	}
+    for (int i = 0; i < positions.size(); ++i) {
+        const ShipMessage &pos = positions[i];
 
-	return true;
+        QUuid pid = pos.id.isNull() ? QUuid::createUuid() : pos.id;
+
+        query.bindValue(QString(":id%1").arg(i), uuidToString(pid));
+        query.bindValue(QString(":vessel_id%1").arg(i), uuidToString(pos.shipId));
+
+        if (pos.timestamp.isValid()) {
+            query.bindValue(QString(":recorded_at%1").arg(i), pos.timestamp);
+        } else {
+            query.bindValue(QString(":recorded_at%1").arg(i), QVariant());
+        }
+
+        query.bindValue(QString(":latitude%1").arg(i), pos.latitude);
+        query.bindValue(QString(":longitude%1").arg(i), pos.longitude);
+        query.bindValue(QString(":speed%1").arg(i), pos.speed);
+        query.bindValue(QString(":course%1").arg(i), pos.course);
+        query.bindValue(QString(":heading%1").arg(i), static_cast<int>(pos.heading));
+    }
+
+    if (!query.exec()) {
+        return setError(error, query);
+    }
+
+    return true;
 }
 
 std::optional<ShipMessage> PositionRepository::findLatestByVesselId(const QUuid &vesselId, QString *error) const

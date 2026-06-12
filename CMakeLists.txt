@@ -8,7 +8,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 # Enable automoc for QObject-derived classes with Q_OBJECT
 set(CMAKE_AUTOMOC ON)
 
-find_package(Qt6 REQUIRED COMPONENTS Core Network Widgets Sql)
+find_package(Qt6 REQUIRED COMPONENTS Core Network Widgets Sql Positioning Location Qml Quick)
 
 add_executable(ShipTracking
     src/main.cpp
@@ -25,7 +25,25 @@ add_executable(ShipTracking
     src/worker/PositionWorker.cpp
     src/worker/ShipWorker.cpp
     src/worker/ShipJsonParser.cpp
+    src/ui/ShipListModel.cpp
+    src/ui/ZoneListModel.cpp
+    src/ui/MapController.cpp
 )
+
+# Đăng ký mô-đun QML cho target ShipTracking
+qt_add_qml_module(ShipTracking
+    URI ShipTracking
+    VERSION 1.0
+    QML_FILES
+        src/ui/qml/main.qml
+        src/ui/qml/VesselMap.qml
+        src/ui/qml/Sidebar.qml
+        src/ui/qml/AlertBanner.qml
+        src/ui/qml/ShipDetailPanel.qml
+)
+
+# Đổi tên file chạy đầu ra thành ShipTrackingApp để tránh trùng tên với thư mục QML Module
+set_target_properties(ShipTracking PROPERTIES OUTPUT_NAME "ShipTrackingApp")
 
 target_include_directories(ShipTracking PRIVATE
     ${CMAKE_SOURCE_DIR}/src
@@ -35,10 +53,10 @@ target_link_libraries(ShipTracking
     PRIVATE
     Qt6::Core
     Qt6::Network
-)
-    
-target_link_libraries(ShipTracking
-    PRIVATE
     Qt6::Widgets
     Qt6::Sql
+    Qt6::Positioning
+    Qt6::Location
+    Qt6::Qml
+    Qt6::Quick
 )

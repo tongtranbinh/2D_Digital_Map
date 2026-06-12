@@ -16,9 +16,6 @@ public:
     ShipStateStore();
     ~ShipStateStore() = default;
 
-    // Cập nhật vị trí mới nhất (Copy-On-Write, hoàn toàn không block luồng đọc)
-    void updatePosition(const ShipMessage &msg);
-
     // Cập nhật hàng loạt vị trí mới nhất (Copy-On-Write)
     void updatePositions(const QVector<ShipMessage> &positions);
 
@@ -45,6 +42,8 @@ public:
     bool getShipZoneState(const QUuid &shipId, const QUuid &zoneId) const;
     // Cập nhật tất cả trạng thái tàu trong zone cùng lúc
     void setShipZoneStates(const QHash<QString, bool> &states);
+    // Cập nhật hàng loạt trạng thái tàu trong zone (Copy-On-Write)
+    void updateShipZoneStates(const QHash<QString, bool> &updates);
 
     // Xóa sạch bộ nhớ cache
     void clear();

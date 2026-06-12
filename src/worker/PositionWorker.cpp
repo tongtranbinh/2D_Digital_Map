@@ -53,9 +53,12 @@ void PositionWorker::processBatch()
 
     // 2. Cập nhật đồng loạt vị trí mới nhất của lô tàu lên RAM (chỉ lock/COW 1 lần duy nhất)
     m_stateStore.updatePositions(batch);
+    emit positionsUpdated(batch);
 
     // 3. Thực hiện kiểm tra vùng địa lý (Geofencing) cho lô tàu vừa nhận
     QVector<AlertZone> zones = m_stateStore.getAlertZones();
+    QHash<QString, bool> zoneStateUpdates;
+
     for (const ShipMessage &msg : batch) {
         GeoPoint currentPoint{msg.longitude, msg.latitude};
 
@@ -78,11 +81,9 @@ void PositionWorker::processBatch()
                 event.position = currentPoint;
 
                 m_pendingAlertEvents.push_back(event);
-                m_stateStore.setShipZoneState(msg.shipId, zone.id, true);
+                zoneStateUpdates.insert(msg.shipId.toString() + "_" + zone.id.toString(), true);
 
-                qInfo() << QStringLiteral("[Geofencing RAM] Vessel %1 ENTERED alert zone: %2")
-                           .arg(msg.shipId.toString())
-                           .arg(zone.name);
+                emit alertEventOccurred(event);
             }
             else if (previouslyInside && !currentlyInside) {
                 // Tàu ĐI RA khỏi vùng cảnh báo (EXIT)
@@ -95,17 +96,17 @@ void PositionWorker::processBatch()
                 event.position = currentPoint;
 
                 m_pendingAlertEvents.push_back(event);
-                m_stateStore.setShipZoneState(msg.shipId, zone.id, false);
-
-                qInfo() << QStringLiteral("[Geofencing RAM] Vessel %1 EXITED alert zone: %2")
-                           .arg(msg.shipId.toString())
-                           .arg(zone.name);
+                zoneStateUpdates.insert(msg.shipId.toString() + "_" + zone.id.toString(), false);
+                emit alertEventOccurred(event);
             }
         }
 
         // 4. Lưu lại vào buffer 30 giây chờ đẩy xuống CSDL
         m_pendingPackets.insert(msg.shipId, msg);
     }
+
+    // Cập nhật đồng loạt trạng thái tàu trong zone lên RAM (chỉ lock/COW 1 lần duy nhất)
+    m_stateStore.updateShipZoneStates(zoneStateUpdates);
 
     // 5. Xóa sạch buffer 200ms
     m_incomingBuffer.clear();

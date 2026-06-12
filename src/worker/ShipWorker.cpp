@@ -61,6 +61,7 @@ void ShipWorker::initialize()
                        .arg(latestPositions.size());
         }
     }
+    emit cachePreloaded();
 }
 
 void ShipWorker::savePendingPackets(const QVector<ShipMessage> &packets, const QVector<AlertEvent> &alertEvents)
@@ -137,4 +138,23 @@ void ShipWorker::savePendingPackets(const QVector<ShipMessage> &packets, const Q
                .arg(alertEvents.size());
 
     emit batchProcessed(successCount);
+}
+
+void ShipWorker::handleTrackHistoryRequest(const QUuid &vesselId)
+{
+    if (!m_db) {
+        initialize();
+    }
+    if (!m_db || (!m_db->isOpen() && !m_db->open())) {
+        qWarning() << "[ShipWorker] DB connection not open, cannot retrieve track history";
+        emit trackHistoryLoaded(vesselId, QVector<ShipMessage>());
+        return;
+    }
+
+    QString error;
+    QVector<ShipMessage> history = m_posService->getPositionHistory(vesselId, 100, &error);
+    if (!error.isEmpty()) {
+        qWarning() << "[ShipWorker] Failed to load position history for ship" << vesselId.toString() << ":" << error;
+    }
+    emit trackHistoryLoaded(vesselId, history);
 }

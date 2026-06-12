@@ -34,6 +34,8 @@ public slots:
 signals:
     void pendingPacketsReady(const QVector<ShipMessage> &packets, const QVector<AlertEvent> &alertEvents);
     void parsingError(const QString &error, const QByteArray &rawMessage);
+    void positionsUpdated(const QVector<ShipMessage> &positions);
+    void alertEventOccurred(const AlertEvent &event);
 
 private:
     bool isPointInPolygon(const GeoPoint &point, const QVector<GeoPoint> &polygon) const;

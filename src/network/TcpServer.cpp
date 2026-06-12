@@ -74,6 +74,24 @@ TcpServer::TcpServer(PostgresConfig dbConfig, ShipStateStore &stateStore, QObjec
             this, &TcpServer::onNewConnection);
 }
 
+TcpServer::~TcpServer()
+{
+    // Gracefully stop the worker threads
+    if (posWorkerThread) {
+        posWorkerThread->quit();
+        posWorkerThread->wait();
+    }
+    if (shipWorkerThread) {
+        shipWorkerThread->quit();
+        shipWorkerThread->wait();
+    }
+
+    // Delete workers since they have no parent and won't be auto-deleted by QObject hierarchy
+    delete posWorker;
+    delete shipWorker;
+}
+
+
 bool TcpServer::start(quint16 port)
 {
     bool ok = server->listen(QHostAddress::Any, port);

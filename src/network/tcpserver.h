@@ -22,6 +22,9 @@ public:
     explicit TcpServer(PostgresConfig dbConfig, ShipStateStore &stateStore, QObject *parent = nullptr);
     bool start(quint16 port);
     QString errorString() const;
+    PositionWorker* positionWorker() const { return posWorker; }
+    ShipWorker* dbWorker() const { return shipWorker; }
+    ~TcpServer();
 
 private slots:
     void onNewConnection();

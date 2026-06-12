@@ -8,24 +8,6 @@ ShipStateStore::ShipStateStore()
     std::atomic_store(&m_shipZoneStates, std::make_shared<QHash<QString, bool>>());
 }
 
-void ShipStateStore::updatePosition(const ShipMessage &msg)
-{
-    // Chỉ khóa luồng ghi để tránh xung đột nếu có nhiều luồng cùng ghi (Luồng đọc hoàn toàn tự do)
-    std::lock_guard<std::mutex> lock(m_writeMutex);
-    
-    // 1. Lấy bản sao con trỏ thông minh hiện tại (Đảm bảo an toàn đa luồng)
-    auto currentStore = std::atomic_load(&m_store);
-    
-    // 2. Tạo một bản sao mới của QHash dựa trên bản sao hiện tại (Copy-On-Write)
-    auto newStore = std::make_shared<QHash<QUuid, ShipMessage>>(*currentStore);
-    
-    // 3. Thực hiện thay đổi (thêm/cập nhật vị trí tàu) trên bản sao mới này
-    newStore->insert(msg.shipId, msg);
-    
-    // 4. Trỏ nguyên tử (atomic store) con trỏ dùng chung sang bảng mới
-    std::atomic_store(&m_store, newStore);
-}
-
 void ShipStateStore::updatePositions(const QVector<ShipMessage> &positions)
 {
     std::lock_guard<std::mutex> lock(m_writeMutex);
@@ -125,6 +107,20 @@ void ShipStateStore::setShipZoneStates(const QHash<QString, bool> &states)
 {
     std::lock_guard<std::mutex> lock(m_writeMutex);
     auto newStates = std::make_shared<QHash<QString, bool>>(states);
+    std::atomic_store(&m_shipZoneStates, newStates);
+}
+
+void ShipStateStore::updateShipZoneStates(const QHash<QString, bool> &updates)
+{
+    if (updates.isEmpty()) {
+        return;
+    }
+    std::lock_guard<std::mutex> lock(m_writeMutex);
+    auto currentStates = std::atomic_load(&m_shipZoneStates);
+    auto newStates = std::make_shared<QHash<QString, bool>>(*currentStates);
+    for (auto it = updates.constBegin(); it != updates.constEnd(); ++it) {
+        newStates->insert(it.key(), it.value());
+    }
     std::atomic_store(&m_shipZoneStates, newStates);
 }
 

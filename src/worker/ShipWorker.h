@@ -29,9 +29,14 @@ public slots:
     // Nhận một lô gói bản tin vị trí và sự kiện cảnh báo từ PositionWorker để thực thi Transaction lưu DB
     void savePendingPackets(const QVector<ShipMessage> &packets, const QVector<AlertEvent> &alertEvents);
 
+    // Xử lý yêu cầu truy vấn lịch sử hành trình từ CSDL của UI
+    void handleTrackHistoryRequest(const QUuid &vesselId);
+
 signals:
     void dbErrorOccurred(const QString &error);
     void batchProcessed(int count);
+    void cachePreloaded();
+    void trackHistoryLoaded(const QUuid &vesselId, const QVector<ShipMessage> &history);
 
 private:
     PostgresConfig m_config;
