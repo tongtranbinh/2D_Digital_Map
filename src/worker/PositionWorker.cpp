@@ -8,6 +8,20 @@ PositionWorker::PositionWorker(ShipStateStore &stateStore, QObject *parent)
 {
 }
 
+PositionWorker::~PositionWorker()
+{
+    if (m_timer) {
+        m_timer->stop();
+        delete m_timer;
+        m_timer = nullptr;
+    }
+    if (m_batchTimer) {
+        m_batchTimer->stop();
+        delete m_batchTimer;
+        m_batchTimer = nullptr;
+    }
+}
+
 void PositionWorker::startTimer()
 {
     if (!m_timer) {

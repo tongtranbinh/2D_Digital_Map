@@ -66,8 +66,13 @@ void ShipListModel::updateShipPositions(const QVector<ShipMessage> &positions,
                                        const QHash<QString, bool> &zoneStates,
                                        const QVector<QUuid> &activeZones)
 {
+    if (positions.isEmpty())
+        return;
+
+    QVector<ShipMessage> newPositions;
+    QVector<int> updatedIndices;
+
     for (const auto &msg : positions) {
-        // Kiểm tra xem tàu có đang ở trong vùng geofence nào không
         bool isInside = false;
         QString shipIdStr = msg.shipId.toString();
         for (const auto &zoneId : activeZones) {
@@ -79,7 +84,6 @@ void ShipListModel::updateShipPositions(const QVector<ShipMessage> &positions,
         }
 
         if (m_shipIdToIndex.contains(msg.shipId)) {
-            // Cập nhật tàu đã tồn tại
             int idx = m_shipIdToIndex[msg.shipId];
             auto &ship = m_ships[idx];
             ship.latitude = msg.latitude;
@@ -90,16 +94,54 @@ void ShipListModel::updateShipPositions(const QVector<ShipMessage> &positions,
             ship.timestamp = msg.timestamp;
             ship.isInsideZone = isInside;
 
-            // Nếu tàu chưa có tên thật trong model, kiểm tra cache
             if (ship.name.startsWith(QLatin1String("Unknown")) && vesselCache.contains(msg.shipId)) {
                 const auto &v = vesselCache[msg.shipId];
                 ship.name = v.name;
                 ship.mmsi = v.mmsi;
             }
-
-            emit dataChanged(createIndex(idx, 0), createIndex(idx, 0));
+            updatedIndices.push_back(idx);
         } else {
-            // Thêm tàu mới
+            newPositions.push_back(msg);
+        }
+    }
+
+    // 1. Phát tín hiệu dataChanged hàng loạt cho các tàu cập nhật
+    if (!updatedIndices.isEmpty()) {
+        int minIdx = updatedIndices[0];
+        int maxIdx = updatedIndices[0];
+        for (int idx : updatedIndices) {
+            if (idx < minIdx) minIdx = idx;
+            if (idx > maxIdx) maxIdx = idx;
+        }
+
+        // Nếu số lượng tàu thay đổi lớn, phát một tín hiệu duy nhất cho toàn vùng
+        if (updatedIndices.size() > 5 || (maxIdx - minIdx + 1) == updatedIndices.size()) {
+            emit dataChanged(createIndex(minIdx, 0), createIndex(maxIdx, 0));
+        } else {
+            // Nếu chỉ có một vài tàu rải rác, phát tín hiệu riêng cho từng tàu
+            for (int idx : updatedIndices) {
+                emit dataChanged(createIndex(idx, 0), createIndex(idx, 0));
+            }
+        }
+    }
+
+    // 2. Chèn hàng loạt tàu mới trong một block duy nhất
+    if (!newPositions.isEmpty()) {
+        int insertStart = m_ships.size();
+        int insertEnd = insertStart + newPositions.size() - 1;
+
+        beginInsertRows(QModelIndex(), insertStart, insertEnd);
+        for (const auto &msg : newPositions) {
+            bool isInside = false;
+            QString shipIdStr = msg.shipId.toString();
+            for (const auto &zoneId : activeZones) {
+                QString key = shipIdStr + "_" + zoneId.toString();
+                if (zoneStates.value(key, false)) {
+                    isInside = true;
+                    break;
+                }
+            }
+
             ShipDisplayData ship;
             ship.shipId = msg.shipId;
             ship.latitude = msg.latitude;
@@ -110,22 +152,19 @@ void ShipListModel::updateShipPositions(const QVector<ShipMessage> &positions,
             ship.timestamp = msg.timestamp;
             ship.isInsideZone = isInside;
 
-            // Tìm thông tin tĩnh từ cache
             if (vesselCache.contains(msg.shipId)) {
                 const auto &v = vesselCache[msg.shipId];
                 ship.name = v.name;
                 ship.mmsi = v.mmsi;
             } else {
-                // Tạo thông tin tạm thời tương tự backend
                 ship.name = QStringLiteral("Vessel %1").arg(msg.shipId.toString().mid(1, 5).toUpper());
                 ship.mmsi = 100000000 + (qHash(msg.shipId) % 900000000);
             }
 
-            beginInsertRows(QModelIndex(), m_ships.size(), m_ships.size());
             m_ships.push_back(ship);
             m_shipIdToIndex[msg.shipId] = m_ships.size() - 1;
-            endInsertRows();
         }
+        endInsertRows();
     }
 }
 

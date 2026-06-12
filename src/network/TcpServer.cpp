@@ -25,11 +25,7 @@ TcpServer::TcpServer(PostgresConfig dbConfig, ShipStateStore &stateStore, QObjec
     posWorker->moveToThread(posWorkerThread);
     shipWorker->moveToThread(shipWorkerThread);
 
-    // 2. Quản lý dọn dẹp khi luồng kết thúc
-    connect(posWorkerThread, &QThread::finished, posWorker, &QObject::deleteLater);
-    connect(shipWorkerThread, &QThread::finished, shipWorker, &QObject::deleteLater);
-
-    // 3. Kết nối luồng chính (TCP) -> Luồng PositionWorker (RAM DB)
+    // 2. Kết nối luồng chính (TCP) -> Luồng PositionWorker (RAM DB)
     connect(this, &TcpServer::rawMessageReceived,
             posWorker, &PositionWorker::processRawMessage,
             Qt::QueuedConnection);
@@ -76,19 +72,22 @@ TcpServer::TcpServer(PostgresConfig dbConfig, ShipStateStore &stateStore, QObjec
 
 TcpServer::~TcpServer()
 {
-    // Gracefully stop the worker threads
-    if (posWorkerThread) {
-        posWorkerThread->quit();
+    if (posWorker && posWorkerThread && posWorkerThread->isRunning()) {
+        connect(posWorker, &QObject::destroyed, posWorkerThread, &QThread::quit, Qt::DirectConnection);
+        posWorker->deleteLater();
         posWorkerThread->wait();
-    }
-    if (shipWorkerThread) {
-        shipWorkerThread->quit();
-        shipWorkerThread->wait();
+    } else {
+        delete posWorker;
     }
 
-    // Delete workers since they have no parent and won't be auto-deleted by QObject hierarchy
-    delete posWorker;
-    delete shipWorker;
+
+    if (shipWorker && shipWorkerThread && shipWorkerThread->isRunning()) {
+        connect(shipWorker, &QObject::destroyed, shipWorkerThread, &QThread::quit, Qt::DirectConnection);
+        shipWorker->deleteLater();
+        shipWorkerThread->wait();
+    } else {
+        delete shipWorker;
+    }
 }
 
 

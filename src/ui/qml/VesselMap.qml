@@ -1,6 +1,7 @@
 import QtQuick
 import QtPositioning
 import QtLocation
+import QtQuick.Shapes
 
 MapView {
     id: root
@@ -11,6 +12,12 @@ MapView {
 
     // ID tàu đang được chọn
     property string selectedShipId: ""
+
+    Binding {
+        target: mapController
+        property: "selectedShipId"
+        value: root.selectedShipId
+    }
 
     // Lịch sử đường đi của tàu được chọn
     property var selectedShipTrack: []
@@ -105,40 +112,26 @@ MapView {
                 width: 24
                 height: 24
 
-                Canvas {
-                    id: shipCanvas
+                Shape {
+                    id: shipShape
                     anchors.fill: parent
                     rotation: heading
+                    antialiasing: true
 
-                    property bool inside: isInsideZone
-                    property bool isSelected: root.selectedShipId === shipId
+                    // Tối ưu hóa hiệu năng bằng cách cache texture trên GPU
+                    layer.enabled: true
+                    layer.smooth: true
 
-                    onInsideChanged: requestPaint()
-                    onIsSelectedChanged: requestPaint()
+                    ShapePath {
+                        strokeWidth: root.selectedShipId === shipId ? 2.5 : 1
+                        strokeColor: root.selectedShipId === shipId ? "#ffffff" : "#0f172a"
+                        fillColor: isInsideZone ? "#ef4444" : (root.selectedShipId === shipId ? "#10b981" : "#06b6d4")
 
-                    onPaint: {
-                        var ctx = getContext("2d");
-                        ctx.reset();
-
-                        if (inside) {
-                            ctx.fillStyle = "#ef4444"; // Đỏ nếu vi phạm geofence
-                        } else if (isSelected) {
-                            ctx.fillStyle = "#10b981"; // Xanh lục nếu chọn
-                        } else {
-                            ctx.fillStyle = "#06b6d4"; // Xanh lam mặc định
-                        }
-
-                        ctx.beginPath();
-                        ctx.moveTo(12, 2);
-                        ctx.lineTo(20, 22);
-                        ctx.lineTo(12, 17);
-                        ctx.lineTo(4, 22);
-                        ctx.closePath();
-                        ctx.fill();
-
-                        ctx.strokeStyle = isSelected ? "#ffffff" : "#0f172a";
-                        ctx.lineWidth = isSelected ? 2.5 : 1;
-                        ctx.stroke();
+                        startX: 12; startY: 2
+                        PathLine { x: 20; y: 22 }
+                        PathLine { x: 12; y: 17 }
+                        PathLine { x: 4; y: 22 }
+                        PathLine { x: 12; y: 2 }
                     }
                 }
 

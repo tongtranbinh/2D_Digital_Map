@@ -19,6 +19,7 @@ class MapController : public QObject
     Q_OBJECT
     Q_PROPERTY(ShipListModel* shipModel READ shipModel CONSTANT)
     Q_PROPERTY(ZoneListModel* zoneModel READ zoneModel CONSTANT)
+    Q_PROPERTY(QString selectedShipId READ selectedShipId WRITE setSelectedShipId NOTIFY selectedShipIdChanged)
 
 public:
     explicit MapController(ShipStateStore &stateStore, QObject *parent = nullptr);
@@ -26,6 +27,9 @@ public:
 
     ShipListModel* shipModel() const { return m_shipModel; }
     ZoneListModel* zoneModel() const { return m_zoneModel; }
+
+    QString selectedShipId() const;
+    void setSelectedShipId(const QString &id);
 
 
     // Lấy hành trình thời gian thực trong RAM của một tàu
@@ -59,6 +63,8 @@ signals:
     // Phát tín hiệu yêu cầu ShipWorker truy vấn CSDL
     void requestTrackHistory(const QUuid &vesselId);
 
+    void selectedShipIdChanged();
+
 private:
     ShipStateStore &m_stateStore;
     ShipListModel *m_shipModel;
@@ -72,4 +78,6 @@ private:
 
     // Danh sách ID các vùng cảnh báo hoạt động
     QVector<QUuid> m_activeZoneIds;
+
+    QUuid m_selectedShipId;
 };

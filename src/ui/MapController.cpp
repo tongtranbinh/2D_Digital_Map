@@ -30,6 +30,7 @@ void MapController::initZones()
 void MapController::handlePositionsUpdated(const QVector<ShipMessage> &positions)
 {
     // 1. Cập nhật lịch sử hành trình trong RAM
+    bool selectedShipTrackUpdated = false;
     for (const auto &msg : positions) {
         QGeoCoordinate coord(msg.latitude, msg.longitude);
         auto &history = m_trackHistories[msg.shipId];
@@ -40,8 +41,13 @@ void MapController::handlePositionsUpdated(const QVector<ShipMessage> &positions
             if (history.size() > 100) {
                 history.removeFirst(); // Giới hạn 100 điểm gần nhất trong RAM
             }
-            emit trackHistoryUpdated(msg.shipId.toString());
+            if (msg.shipId == m_selectedShipId) {
+                selectedShipTrackUpdated = true;
+            }
         }
+    }
+    if (selectedShipTrackUpdated && !m_selectedShipId.isNull()) {
+        emit trackHistoryUpdated(m_selectedShipId.toString());
     }
 
     // 2. Lấy trạng thái Geofence trực tiếp từ RAM (ShipStateStore)
@@ -130,4 +136,21 @@ void MapController::handleTrackHistoryLoaded(const QUuid &vesselId, const QVecto
     m_trackHistories.insert(vesselId, coords);
     qInfo() << "[MapController] Loaded" << coords.size() << "points of history from DB for ship:" << vesselId.toString();
     emit trackHistoryUpdated(vesselId.toString());
+}
+
+QString MapController::selectedShipId() const
+{
+    return m_selectedShipId.toString();
+}
+
+void MapController::setSelectedShipId(const QString &id)
+{
+    QUuid uuid = QUuid::fromString(id);
+    if (uuid.isNull() && !id.isEmpty()) {
+        uuid = QUuid::fromString("{" + id + "}");
+    }
+    if (m_selectedShipId != uuid) {
+        m_selectedShipId = uuid;
+        emit selectedShipIdChanged();
+    }
 }

@@ -16,7 +16,7 @@ class PositionWorker : public QObject
     Q_OBJECT
 public:
     explicit PositionWorker(ShipStateStore &stateStore, QObject *parent = nullptr);
-    ~PositionWorker() = default;
+    ~PositionWorker();
 
 public slots:
     // Mở timer khi luồng phụ đã khởi động

@@ -49,6 +49,7 @@ void PostgresConnection::close()
 	if (m_database.isValid()) {
 		m_database.close();
 		m_database = QSqlDatabase();
+		QSqlDatabase::removeDatabase(m_connectionName);
 	}
 }
 

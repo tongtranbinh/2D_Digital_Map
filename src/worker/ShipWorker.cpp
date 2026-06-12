@@ -11,13 +11,18 @@ ShipWorker::ShipWorker(PostgresConfig dbConfig, ShipStateStore &stateStore, QObj
 
 ShipWorker::~ShipWorker()
 {
-    delete m_shipService;
-    delete m_posService;
-    delete m_alertService;
-    delete m_shipRepo;
-    delete m_posRepo;
-    delete m_alertRepo;
-    delete m_db;
+    cleanup();
+}
+
+void ShipWorker::cleanup()
+{
+    delete m_shipService;  m_shipService = nullptr;
+    delete m_posService;   m_posService = nullptr;
+    delete m_alertService; m_alertService = nullptr;
+    delete m_shipRepo;     m_shipRepo = nullptr;
+    delete m_posRepo;      m_posRepo = nullptr;
+    delete m_alertRepo;    m_alertRepo = nullptr;
+    delete m_db;           m_db = nullptr;
 }
 
 void ShipWorker::initialize()

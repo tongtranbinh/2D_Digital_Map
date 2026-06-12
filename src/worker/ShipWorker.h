@@ -26,6 +26,9 @@ public slots:
     // Khởi tạo database, các service và nạp sẵn cache từ DB lên RAM
     void initialize();
 
+    // Dọn dẹp tài nguyên CSDL trong worker thread
+    void cleanup();
+
     // Nhận một lô gói bản tin vị trí và sự kiện cảnh báo từ PositionWorker để thực thi Transaction lưu DB
     void savePendingPackets(const QVector<ShipMessage> &packets, const QVector<AlertEvent> &alertEvents);
 
