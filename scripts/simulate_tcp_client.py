@@ -8,7 +8,7 @@ import math
 # Cấu hình kết nối TCP
 HOST = 'localhost'
 PORT = 9000
-NUM_SHIPS = 2000
+NUM_SHIPS = 1000
 
 # Khu vực địa lý khởi tạo (Vùng biển Việt Nam / Biển Đông)
 # Lat: 10.0 đến 22.0 N, Lon: 105.0 đến 115.0 E

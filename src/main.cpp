@@ -8,6 +8,7 @@
 #include "database/PostgresConnection.h"
 #include "state/ShipStateStore.h"
 #include "ui/MapController.h"
+#include "ui/ShipRenderLayer.h"
 #include "worker/PositionWorker.h"
 #include "worker/ShipWorker.h"
 
@@ -19,6 +20,8 @@ int main(int argc, char *argv[])
     qRegisterMetaType<AlertEvent>("AlertEvent");
     qRegisterMetaType<QVector<AlertEvent>>("QVector<AlertEvent>");
     qRegisterMetaType<AlertZone>("AlertZone");
+
+    qmlRegisterType<ShipRenderLayer>("ShipTracking", 1, 0, "ShipRenderLayer");
 
     // 1. Cấu hình Postgres
     PostgresConfig config;

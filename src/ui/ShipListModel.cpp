@@ -71,6 +71,8 @@ void ShipListModel::updateShipPositions(const QVector<ShipMessage> &positions,
 
     QVector<ShipMessage> newPositions;
     QVector<int> updatedIndices;
+    const int previousShipCount = m_ships.size();
+    const int previousAlertCount = m_alertCount;
 
     for (const auto &msg : positions) {
         bool isInside = false;
@@ -166,6 +168,11 @@ void ShipListModel::updateShipPositions(const QVector<ShipMessage> &positions,
         }
         endInsertRows();
     }
+
+    recomputeAlertCount();
+    if (previousShipCount != m_ships.size() || previousAlertCount != m_alertCount) {
+        emit countsChanged();
+    }
 }
 
 QVariantMap ShipListModel::getShipAt(int index) const
@@ -195,4 +202,15 @@ int ShipListModel::findShipIndex(const QString &shipId) const
         uuid = QUuid::fromString("{" + shipId + "}");
     }
     return m_shipIdToIndex.value(uuid, -1);
+}
+
+void ShipListModel::recomputeAlertCount()
+{
+    int count = 0;
+    for (const auto &ship : m_ships) {
+        if (ship.isInsideZone) {
+            ++count;
+        }
+    }
+    m_alertCount = count;
 }

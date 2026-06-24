@@ -28,6 +28,8 @@ add_executable(ShipTracking
     src/ui/ShipListModel.cpp
     src/ui/ZoneListModel.cpp
     src/ui/MapController.cpp
+    src/ui/ShipRenderLayer.h
+    src/ui/ShipRenderLayer.cpp
 )
 
 # Đăng ký mô-đun QML cho target ShipTracking

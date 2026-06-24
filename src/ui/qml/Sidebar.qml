@@ -4,221 +4,214 @@ import QtQuick.Layouts
 
 Rectangle {
     id: root
-    width: 320
-    color: "#0f172a" // Slate 900
-    border.color: "#1e293b" // Slate 800
+    color: "#0f172a"
+    border.color: "#1e293b"
     border.width: 1
+    clip: true
 
     property string selectedShipId: ""
-    property string searchText: ""
+    property bool collapsed: false
+    readonly property int collapsedWidth: 48
+    readonly property int expandedWidth: 320
 
     signal shipClicked(string shipId, string name, var mmsi, double lat, double lon, double speed, double heading, double course, string timeStr, bool insideZone)
+
+    Behavior on width {
+        NumberAnimation { duration: 180; easing.type: Easing.OutCubic }
+    }
+
+    ToolButton {
+        id: toggleButton
+        width: 32
+        height: 32
+        anchors.top: parent.top
+        anchors.right: parent.right
+        anchors.topMargin: 12
+        anchors.rightMargin: 8
+        z: 10
+        text: root.collapsed ? ">" : "<"
+        font.bold: true
+        font.pixelSize: 16
+        onClicked: root.collapsed = !root.collapsed
+
+        background: Rectangle {
+            color: toggleButton.hovered ? "#334155" : "#1e293b"
+            border.color: "#334155"
+            border.width: 1
+            radius: 6
+        }
+        palette.buttonText: "#f8fafc"
+    }
 
     ColumnLayout {
         anchors.fill: parent
         anchors.margins: 16
+        anchors.rightMargin: 48
         spacing: 12
+        visible: !root.collapsed
+        opacity: root.collapsed ? 0 : 1
 
-        // Tiêu đề App
-        RowLayout {
-            spacing: 8
-            Text {
-                text: "SHIP TRACKING"
-                color: "#f8fafc"
-                font.bold: true
-                font.pixelSize: 18
-                font.letterSpacing: 1.5
-            }
+        Text {
+            text: "SHIP TRACKING"
+            color: "#f8fafc"
+            font.bold: true
+            font.pixelSize: 18
+            Layout.fillWidth: true
+            elide: Text.ElideRight
         }
 
-        // Vạch phân cách
         Rectangle {
             Layout.fillWidth: true
             height: 1
             color: "#1e293b"
         }
 
-
-        // Tab chuyển đổi (Danh sách tàu / Danh sách vùng)
-        TabBar {
-            id: tabBar
+        RowLayout {
             Layout.fillWidth: true
-            height: 32
-            
-            background: Rectangle {
-                color: "#1e293b"
-                radius: 4
-            }
+            spacing: 8
 
-            TabButton {
-                text: "Tàu hoạt động"
-                font.pixelSize: 11
-                font.bold: true
-                height: 32
-            }
-            TabButton {
-                text: "Vùng cảnh báo"
-                font.pixelSize: 11
-                font.bold: true
-                height: 32
-            }
-        }
+            Rectangle {
+                Layout.fillWidth: true
+                height: 58
+                radius: 6
+                color: "#111827"
+                border.color: "#1e293b"
+                border.width: 1
 
-        // Stack chứa nội dung 2 tab
-        StackLayout {
-            Layout.fillWidth: true
-            Layout.fillHeight: true
-            currentIndex: tabBar.currentIndex
-
-            // Tab 1: Danh sách tàu
-            Item {
-                ListView {
-                    id: shipListView
+                ColumnLayout {
                     anchors.fill: parent
-                    spacing: 4
-                    clip: true
-                    model: mapController.shipModel
+                    anchors.margins: 10
+                    spacing: 2
 
-                    delegate: Rectangle {
-                        id: shipDelegate
-                        width: shipListView.width
-                        height: isMatch ? 56 : 0
-                        visible: isMatch
-                        radius: 6
-                        color: root.selectedShipId === shipId ? "#1e293b" : (hoverArea.containsMouse ? "#1e293b80" : "transparent")
+                    Text {
+                        text: "TRACKING"
+                        color: "#64748b"
+                        font.pixelSize: 9
+                        font.bold: true
+                    }
 
-                        // Kiểm tra lọc tìm kiếm
-                        property bool isMatch: {
-                            if (root.searchText.trim() === "") return true;
-                            var term = root.searchText.toLowerCase();
-                            var nameMatch = vesselName.toLowerCase().indexOf(term) !== -1;
-                            var mmsiMatch = String(mmsi).indexOf(term) !== -1;
-                            return nameMatch || mmsiMatch;
-                        }
-
-                        RowLayout {
-                            anchors.fill: parent
-                            anchors.margins: 10
-                            spacing: 12
-
-                            // Cột hiển thị màu trạng thái tàu
-                            Rectangle {
-                                width: 8
-                                height: 8
-                                radius: 4
-                                color: isInsideZone ? "#ef4444" : "#10b981" // Red for alarm, Emerald for normal
-
-                                // Hiệu ứng nhấp nháy cho tàu bị cảnh báo
-                                SequentialAnimation on opacity {
-                                    running: isInsideZone
-                                    loops: Animation.Infinite
-                                    NumberAnimation { to: 0.2; duration: 500 }
-                                    NumberAnimation { to: 1.0; duration: 500 }
-                                }
-                            }
-
-                            ColumnLayout {
-                                Layout.fillWidth: true
-                                spacing: 2
-
-                                Text {
-                                    text: vesselName
-                                    color: "#f8fafc"
-                                    font.bold: true
-                                    font.pixelSize: 13
-                                    elide: Text.ElideRight
-                                    Layout.fillWidth: true
-                                }
-
-                                Text {
-                                    text: "MMSI: " + mmsi + " | Vận tốc: " + speed.toFixed(1) + " km/h"
-                                    color: "#64748b"
-                                    font.pixelSize: 10
-                                }
-                            }
-
-                            // Huy hiệu cảnh báo
-                            Rectangle {
-                                visible: isInsideZone
-                                width: 50
-                                height: 18
-                                radius: 3
-                                color: "#7f1d1d"
-                                border.color: "#b91c1c"
-                                
-                                Text {
-                                    anchors.centerIn: parent
-                                    text: "ALERT"
-                                    color: "#fecaca"
-                                    font.pixelSize: 8
-                                    font.bold: true
-                                }
-                            }
-                        }
-
-                        MouseArea {
-                            id: hoverArea
-                            anchors.fill: parent
-                            hoverEnabled: true
-                            cursorShape: Qt.PointingHandCursor
-                            onClicked: {
-                                var timeStr = timestamp.toLocaleTimeString(Qt.locale(), "hh:mm:ss dd/MM");
-                                root.shipClicked(shipId, vesselName, mmsi, latitude, longitude, speed, heading, course, timeStr, isInsideZone);
-                            }
-                        }
+                    Text {
+                        text: mapController.shipModel.trackingCount
+                        color: "#f8fafc"
+                        font.pixelSize: 22
+                        font.bold: true
                     }
                 }
             }
 
-            // Tab 2: Danh sách vùng geofence
-            Item {
-                ListView {
-                    id: zoneListView
-                    anchors.fill: parent
-                    spacing: 6
-                    clip: true
-                    model: mapController.zoneModel
+            Rectangle {
+                Layout.fillWidth: true
+                height: 58
+                radius: 6
+                color: "#1f1115"
+                border.color: "#7f1d1d"
+                border.width: 1
 
-                    delegate: Rectangle {
-                        width: zoneListView.width
-                        height: 60
-                        radius: 6
-                        color: "#1e293b40"
-                        border.color: enabled ? "#ef444440" : "#334155"
+                ColumnLayout {
+                    anchors.fill: parent
+                    anchors.margins: 10
+                    spacing: 2
+
+                    Text {
+                        text: "ALERT"
+                        color: "#fca5a5"
+                        font.pixelSize: 9
+                        font.bold: true
+                    }
+
+                    Text {
+                        text: mapController.shipModel.alertCount
+                        color: "#ef4444"
+                        font.pixelSize: 22
+                        font.bold: true
+                    }
+                }
+            }
+        }
+
+        ListView {
+            id: shipListView
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+            spacing: 4
+            clip: true
+            model: mapController.shipModel
+
+            delegate: Rectangle {
+                id: shipDelegate
+                width: shipListView.width
+                height: 56
+                radius: 6
+                color: root.selectedShipId === shipId ? "#1e293b" : (hoverArea.containsMouse ? "#1e293b80" : "transparent")
+
+                RowLayout {
+                    anchors.fill: parent
+                    anchors.margins: 10
+                    spacing: 12
+
+                    Rectangle {
+                        width: 8
+                        height: 8
+                        radius: 4
+                        color: isInsideZone ? "#ef4444" : "#10b981"
+
+                        SequentialAnimation on opacity {
+                            running: isInsideZone
+                            loops: Animation.Infinite
+                            NumberAnimation { to: 0.25; duration: 500 }
+                            NumberAnimation { to: 1.0; duration: 500 }
+                        }
+                    }
+
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        spacing: 2
+
+                        Text {
+                            text: vesselName
+                            color: "#f8fafc"
+                            font.bold: true
+                            font.pixelSize: 13
+                            elide: Text.ElideRight
+                            Layout.fillWidth: true
+                        }
+
+                        Text {
+                            text: "MMSI: " + mmsi + " | Speed: " + speed.toFixed(1) + " km/h"
+                            color: "#64748b"
+                            font.pixelSize: 10
+                            elide: Text.ElideRight
+                            Layout.fillWidth: true
+                        }
+                    }
+
+                    Rectangle {
+                        visible: isInsideZone
+                        width: 48
+                        height: 18
+                        radius: 3
+                        color: "#7f1d1d"
+                        border.color: "#b91c1c"
                         border.width: 1
 
-                        RowLayout {
-                            anchors.fill: parent
-                            anchors.margins: 10
-                            spacing: 12
-
-                            Rectangle {
-                                width: 12
-                                height: 12
-                                radius: 6
-                                color: enabled ? "#ef4444" : "#64748b"
-                            }
-
-                            ColumnLayout {
-                                Layout.fillWidth: true
-                                spacing: 2
-
-                                Text {
-                                    text: zoneName
-                                    color: "#f8fafc"
-                                    font.bold: true
-                                    font.pixelSize: 12
-                                }
-
-                                Text {
-                                    text: description !== "" ? description : "Vùng giám sát Geofence"
-                                    color: "#64748b"
-                                    font.pixelSize: 10
-                                    elide: Text.ElideRight
-                                    Layout.fillWidth: true
-                                }
-                            }
+                        Text {
+                            anchors.centerIn: parent
+                            text: "ALERT"
+                            color: "#fecaca"
+                            font.pixelSize: 8
+                            font.bold: true
                         }
+                    }
+                }
+
+                MouseArea {
+                    id: hoverArea
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: {
+                        var timeStr = timestamp.toLocaleTimeString(Qt.locale(), "hh:mm:ss dd/MM");
+                        root.shipClicked(shipId, vesselName, mmsi, latitude, longitude, speed, heading, course, timeStr, isInsideZone);
                     }
                 }
             }

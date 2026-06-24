@@ -101,9 +101,9 @@ ApplicationWindow {
         // 1. Sidebar bên trái (Danh sách tàu & Vùng Geofence)
         Sidebar {
             id: sidebar
-            SplitView.minimumWidth: 280
-            SplitView.preferredWidth: 320
-            SplitView.maximumWidth: 400
+            SplitView.minimumWidth: collapsed ? collapsedWidth : 280
+            SplitView.preferredWidth: collapsed ? collapsedWidth : expandedWidth
+            SplitView.maximumWidth: collapsed ? collapsedWidth : 400
             selectedShipId: mapView.selectedShipId
 
             onShipClicked: (shipId, name, mmsi, lat, lon, speed, heading, course, timeStr, insideZone) => {
@@ -139,45 +139,14 @@ ApplicationWindow {
             AlertBanner {
                 id: alertBanner
             }
-
-            // Nút bật/tắt Sidebar (Toggle Sidebar Button)
-            Button {
-                id: toggleSidebarBtn
-                width: 24
-                height: 50
-                anchors.left: parent.left
-                anchors.top: parent.top
-                anchors.leftMargin: sidebar.visible ? -width / 2 : 8
-                anchors.topMargin: 20
-                z: 1001
-                
-                text: sidebar.visible ? "◀" : "▶"
-                font.bold: true
-                font.pixelSize: 11
-                leftPadding: 0
-                rightPadding: 0
-
-                background: Rectangle {
-                    color: toggleSidebarBtn.hovered ? "#334155" : "#1e293b" // Slate 700 / Slate 800
-                    border.color: toggleSidebarBtn.hovered ? "#475569" : "#334155" // Slate 600 / Slate 700
-                    border.width: 1
-                    radius: 12
-                }
-                palette.buttonText: "#ffffff"
-
-                onClicked: {
-                    sidebar.visible = !sidebar.visible;
-                }
-            }
-
-            // Bảng điều khiển vẽ vùng cảnh báo (Drawing Control Panel)
+            // B?ng di?u khi?n v? v�ng c?nh b�o (Drawing Control Panel)
             Rectangle {
                 id: drawingPanel
                 width: 280
                 height: mapView.isDrawingMode ? 280 : 70
-                anchors.left: toggleSidebarBtn.right
+                anchors.left: parent.left
                 anchors.top: parent.top
-                anchors.leftMargin: 10
+                anchors.leftMargin: 20
                 anchors.topMargin: 20
                 z: 1000
                 radius: 8

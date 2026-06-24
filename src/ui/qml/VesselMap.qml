@@ -1,7 +1,7 @@
 import QtQuick
 import QtPositioning
 import QtLocation
-import QtQuick.Shapes
+import ShipTracking 1.0
 
 MapView {
     id: root
@@ -143,51 +143,40 @@ MapView {
         }
     }
 
-    // 3. Vẽ các Tàu biển trên Bản đồ
-    MapItemView {
+    // 3. Vẽ toàn bộ tàu bằng một Scene Graph layer thay vì MapQuickItem từng tàu
+    ShipRenderLayer {
+        id: shipLayer
         parent: root.map
-        model: mapController.shipModel
-        delegate: MapQuickItem {
-            coordinate: QtPositioning.coordinate(latitude, longitude)
-            anchorPoint: Qt.point(12, 12)
-            z: root.selectedShipId === shipId ? 100 : 1
+        anchors.fill: parent
+        z: 100
+        mapObject: root.map
+        shipModel: mapController.shipModel
+        zoomLevel: root.map.zoomLevel
+        showLabels: root.map.zoomLevel >= 10
 
-            sourceItem: Item {
-                width: 24
-                height: 24
+        onShipClicked: function(shipId) {
+            root.selectedShipId = shipId;
+            var index = mapController.shipModel.findShipIndex(shipId);
+            if (index < 0)
+                return;
 
-                Shape {
-                    id: shipShape
-                    anchors.fill: parent
-                    rotation: heading
-                    antialiasing: true
+            var ship = mapController.shipModel.getShipAt(index);
+            if (!ship || Object.keys(ship).length === 0)
+                return;
 
-                    // Tối ưu hóa hiệu năng bằng cách cache texture trên GPU
-                    layer.enabled: true
-                    layer.smooth: true
-
-                    ShapePath {
-                        strokeWidth: root.selectedShipId === shipId ? 2.5 : 1
-                        strokeColor: root.selectedShipId === shipId ? "#ffffff" : "#0f172a"
-                        fillColor: isInsideZone ? "#ef4444" : (root.selectedShipId === shipId ? "#10b981" : "#06b6d4")
-
-                        startX: 12; startY: 2
-                        PathLine { x: 20; y: 22 }
-                        PathLine { x: 12; y: 17 }
-                        PathLine { x: 4; y: 22 }
-                        PathLine { x: 12; y: 2 }
-                    }
-                }
-
-                MouseArea {
-                    anchors.fill: parent
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: {
-                        var timeStr = timestamp.toLocaleTimeString(Qt.locale(), "hh:mm:ss dd/MM");
-                        root.shipSelected(shipId, vesselName, mmsi, latitude, longitude, speed, heading, course, timeStr, isInsideZone);
-                    }
-                }
-            }
+            var timeStr = ship.timestamp ? ship.timestamp.toLocaleTimeString(Qt.locale(), "hh:mm:ss dd/MM") : "";
+            root.shipSelected(ship.shipId, ship.vesselName, ship.mmsi,
+                              ship.latitude, ship.longitude, ship.speed,
+                              ship.heading, ship.course, timeStr,
+                              ship.isInsideZone);
         }
+    }
+
+    Connections {
+        target: root.map
+        function onCenterChanged() { shipLayer.refresh(); }
+        function onZoomLevelChanged() { shipLayer.refresh(); }
+        function onWidthChanged() { shipLayer.refresh(); }
+        function onHeightChanged() { shipLayer.refresh(); }
     }
 }

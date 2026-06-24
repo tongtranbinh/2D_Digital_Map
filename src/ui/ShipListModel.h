@@ -25,6 +25,8 @@ struct ShipDisplayData {
 class ShipListModel : public QAbstractListModel
 {
     Q_OBJECT
+    Q_PROPERTY(int trackingCount READ trackingCount NOTIFY countsChanged)
+    Q_PROPERTY(int alertCount READ alertCount NOTIFY countsChanged)
 
 public:
     enum ShipRoles {
@@ -60,7 +62,16 @@ public:
     // Lấy vị trí của một tàu cụ thể
     Q_INVOKABLE int findShipIndex(const QString &shipId) const;
 
+    int trackingCount() const { return m_ships.size(); }
+    int alertCount() const { return m_alertCount; }
+
+signals:
+    void countsChanged();
+
 private:
+    void recomputeAlertCount();
+
     QVector<ShipDisplayData> m_ships;
     QHash<QUuid, int> m_shipIdToIndex;
+    int m_alertCount{0};
 };
