@@ -10,7 +10,7 @@ Hệ thống được thiết kế theo mô hình **Layered Architecture (Kiến
 
 1. **Luồng Mạng (Main TCP Server Thread)**: Tiếp nhận các kết nối TCP từ client, đọc dữ liệu thô, tách dòng và đẩy sang hàng đợi xử lý. Luồng này hoàn toàn không thực hiện parse JSON hay thao tác CSDL để đảm bảo tốc độ phản hồi kết nối.
 2. **Luồng Xử lý Vị trí & Geofencing (PositionWorker Thread)**: Parse dữ liệu JSON, gom cụm (batching) vị trí để cập nhật vào RAM DB (`ShipStateStore`) mỗi 200ms, đồng thời chạy thuật toán kiểm tra vùng địa lý (Geofencing) để phát hiện sự kiện tàu đi ra/vào vùng cảnh báo.
-3. **Luồng Ghi Cơ sở Dữ liệu (ShipWorker Thread)**: Nhận các gói tin vị trí đã được tối giản và các sự kiện cảnh báo định kỳ mỗi 30 giây để thực thi lưu trữ bền vững xuống PostgreSQL thông qua các Transaction và Batch Insert.
+3. **Luồng Ghi Cơ sở Dữ liệu (ShipWorker Thread)**: Nhận các gói tin vị trí đã được tối giản và các sự kiện cảnh báo định kỳ mỗi 5 giây để thực thi lưu trữ bền vững xuống PostgreSQL thông qua các Transaction và Batch Insert.
 
 ```mermaid
 graph TD
@@ -23,7 +23,7 @@ graph TD
         PosWorker -->|Geofencing Check / 200ms| StateStore
     end
     
-    PosWorker -->|pendingPacketsReady / 30s| ShipWorker[ShipWorker - Thread phụ 2]
+    PosWorker -->|pendingPacketsReady / 5s| ShipWorker[ShipWorker - Thread phụ 2]
     
     subgraph DB Layer
         ShipWorker -->|Thực thi Transaction & Batch Insert| Postgres[(PostgreSQL / PostGIS)]
@@ -70,7 +70,7 @@ Thực thi các tiến trình lặp tuần hoàn hoặc xử lý hàng đợi tr
 *   [PositionWorker](file:///D:/Document/LapTrinh/VDT/2D_Digital_Map/src/worker/PositionWorker.h):
     *   Lắng nghe dữ liệu thô nhận được từ TCP thông qua khe cắm tín hiệu (slot) `processRawMessage`.
     *   Mỗi 200ms (`m_batchTimer` kích hoạt slot `processBatch`), luồng sẽ gom dữ liệu thô đã được phân tích, đẩy đồng loạt cập nhật lên RAM Cache. Sau đó chạy thuật toán Ray-Casting để xác định trạng thái di chuyển của tàu đối với các vùng cảnh báo, phát sinh các sự kiện `ENTER`/`EXIT` nếu có sự thay đổi trạng thái.
-    *   Mỗi 30s (`m_timer` kích hoạt slot `flushPendingPackets`), luồng sẽ đẩy toàn bộ danh sách gói tin vị trí (đã được lọc trùng lặp chỉ giữ lại vị trí cuối cùng của mỗi tàu) và sự kiện cảnh báo sang luồng ghi DB thông qua signal `pendingPacketsReady`.
+    *   Mỗi 5s (`m_timer` kích hoạt slot `flushPendingPackets`), luồng sẽ đẩy toàn bộ danh sách gói tin vị trí (đã được lọc trùng lặp chỉ giữ lại vị trí cuối cùng của mỗi tàu) và sự kiện cảnh báo sang luồng ghi DB thông qua signal `pendingPacketsReady`.
 *   [ShipWorker](file:///D:/Document/LapTrinh/VDT/2D_Digital_Map/src/worker/ShipWorker.h): Chạy trên luồng CSDL chuyên biệt. Khi khởi tạo, nó preload dữ liệu từ PostgreSQL lên RAM Cache (`ShipStateStore`). Khi nhận được tín hiệu dữ liệu sẵn sàng từ `PositionWorker`, nó mở một transaction CSDL để lưu trữ hàng loạt gói tin vị trí tàu và cập nhật thông tin sự kiện cảnh báo.
 
 ### 2.6. Lớp Mạng (Network) - `src/network/`
@@ -122,17 +122,17 @@ sequenceDiagram
     PW->>PW: Chạy thuật toán Ray-Casting kiểm tra Geofencing
     PW->>Store: getShipZoneState() & setShipZoneState() (Kiểm tra & Cập nhật trạng thái)
     PW->>PW: Lưu sự kiện ENTER/EXIT vào m_pendingAlertEvents
-    PW->>PW: Lưu vị trí cuối cùng của tàu vào m_pendingPackets (Buffer 30s)
+    PW->>PW: Lưu vị trí cuối cùng của tàu vào m_pendingPackets (Buffer 5s)
 ```
 
-### Workflow 3: Đồng bộ dữ liệu xuống Cơ sở dữ liệu bền vững (30 giây)
+### Workflow 3: Đồng bộ dữ liệu xuống Cơ sở dữ liệu bền vững (5 giây)
 ```mermaid
 sequenceDiagram
     participant PW as PositionWorker (Pos Thread)
     participant SW as ShipWorker (DB Thread)
     participant PG as PostgreSQL
     
-    Note over PW: Mỗi 30s (Timer kích hoạt flushPendingPackets)
+    Note over PW: Mỗi 5s (Timer kích hoạt flushPendingPackets)
     PW->>SW: emit pendingPacketsReady(packets, alertEvents) (Bất đồng bộ)
     PW->>PW: Xóa sạch buffer m_pendingPackets và m_pendingAlertEvents
     
@@ -169,7 +169,7 @@ Dự án hiện đã hoàn thiện các tính năng cốt lõi sau:
     *   Thiết kế thành công `ShipStateStore` sử dụng cơ chế Copy-On-Write (COW) kết hợp con trỏ nguyên tử để phục vụ đọc dữ liệu thời gian thực không khóa (Lock-free), đảm bảo thông tin vị trí tàu hoặc vùng cảnh báo luôn sẵn sàng cung cấp cho lớp hiển thị hoặc xử lý mà không bị nghẽn bởi các tiến trình ghi.
 4.  **Tối ưu hiệu năng Xử lý Geofencing & Ghi CSDL**:
     *   Triển khai thuật toán Ray-Casting hình học chuyên biệt trong C++ tại [PositionWorker::isPointInPolygon](file:///D:/Document/LapTrinh/VDT/2D_Digital_Map/src/worker/PositionWorker.cpp#L141-L162) giúp kiểm tra vị trí tàu trong đa giác cảnh báo vô cùng nhanh chóng trên RAM mà không cần truy vấn không gian nặng nề xuống DB cho mỗi bản tin.
-    *   Tối ưu hóa số lượng truy vấn đĩa bằng cách sử dụng cấu trúc **Database Transaction** và **Batch Insert** (`QSqlQuery::execBatch`) gom dữ liệu 30 giây mới ghi đĩa một lần, nâng cao đáng kể băng thông ghi dữ liệu (Throughput) của máy chủ CSDL.
+    *   Tối ưu hóa số lượng truy vấn đĩa bằng cách sử dụng cấu trúc **Database Transaction** và **Batch Insert** (`QSqlQuery::execBatch`) gom dữ liệu 5 giây mới ghi đĩa một lần, nâng cao đáng kể băng thông ghi dữ liệu (Throughput) của máy chủ CSDL.
 5.  **Cấu trúc mã nguồn & Build System**:
     *   Mã nguồn viết theo chuẩn C++17, cấu trúc phân lớp rõ ràng, áp dụng Dependency Injection.
     *   File cấu hình [CMakeLists.txt](file:///D:/Document/LapTrinh/VDT/2D_Digital_Map/CMakeLists.txt) liên kết các module Qt6 cần thiết (`Core`, `Network`, `Widgets`, `Sql`) và tự động kích hoạt `CMAKE_AUTOMOC` xử lý siêu dữ liệu QObject.

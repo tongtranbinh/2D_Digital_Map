@@ -1,0 +1,32 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgis/postgis:15-3.3
+    container_name: ship_tracking_db
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: ship_tracking
+      POSTGRES_USER: ship_user
+      POSTGRES_PASSWORD: "123456"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./sql/migrations:/docker-entrypoint-initdb.d
+    restart: always
+
+  osm-tile-server:
+    image: overv/openstreetmap-tile-server
+    container_name: osm_tile_server
+    ports:
+      - "8080:80"
+    volumes:
+      - osm-data:/data
+      - ./map.osm.pbf:/data.osm.pbf
+    environment:
+      - THREADS=4
+    restart: always
+
+volumes:
+  pgdata:
+  osm-data:

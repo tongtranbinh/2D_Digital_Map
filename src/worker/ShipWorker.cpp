@@ -163,3 +163,22 @@ void ShipWorker::handleTrackHistoryRequest(const QUuid &vesselId)
     }
     emit trackHistoryLoaded(vesselId, history);
 }
+
+void ShipWorker::handleSaveZoneRequest(const AlertZone &zone)
+{
+    if (!m_db) {
+        initialize();
+    }
+    if (!m_db || (!m_db->isOpen() && !m_db->open())) {
+        qWarning() << "[ShipWorker] DB connection not open, cannot save zone";
+        return;
+    }
+
+    QString error;
+    AlertZone z = zone;
+    if (m_alertRepo->saveZone(z, &error)) {
+        qInfo() << "[ShipWorker] Successfully saved new zone to DB:" << z.name;
+    } else {
+        qWarning() << "[ShipWorker] Failed to save zone to DB:" << error;
+    }
+}

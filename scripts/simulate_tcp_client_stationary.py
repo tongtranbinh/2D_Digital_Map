@@ -78,10 +78,10 @@ def is_on_land(lat, lon):
             return True
     return False
 
-print(f"Đang khởi tạo cấu hình cho {NUM_SHIPS} tàu...")
+print(f"Đang khởi tạo cấu hình cho {NUM_SHIPS} tàu đứng yên...")
 
-# Khởi tạo dữ liệu trạng thái cho 1000 tàu
-random.seed(42)  # Seed cố định để các tọa độ và vận tốc ban đầu giống nhau mọi lúc chạy
+# Khởi tạo dữ liệu trạng thái cho 2000 tàu
+random.seed(42)  # Seed cố định để các tọa độ ban đầu giống nhau mọi lúc chạy
 ships = []
 for i in range(NUM_SHIPS):
     # Sử dụng uuid5 với Namespace cố định để sinh ra UUID cố định cho từng chỉ số tàu
@@ -94,8 +94,8 @@ for i in range(NUM_SHIPS):
         if not is_on_land(lat, lon):
             break
             
-    speed = random.uniform(5.0, 25.0)  # Vận tốc: 5 đến 25 hải lý/giờ (knots)
-    heading = random.uniform(0.0, 360.0) # Hướng đi: 0 đến 360 độ
+    speed = 0.0  # Vận tốc: 0 hải lý/giờ (tàu đứng yên)
+    heading = random.uniform(0.0, 360.0) # Hướng đi ban đầu
     course = heading
     
     ships.append({
@@ -109,38 +109,9 @@ for i in range(NUM_SHIPS):
 
 def update_position(ship, dt_seconds):
     """
-    Cập nhật tọa độ tàu dựa trên vận tốc (knots) và hướng đi (degrees).
-    1 knot ~ 0.5144 m/s.
+    Tàu đứng yên, không thay đổi vị trí, vận tốc hay hướng đi.
     """
-    # Thay đổi hướng đi một chút ngẫu nhiên để quỹ đạo uốn lượn tự nhiên
-    ship["heading"] += random.uniform(-4.0, 4.0)
-    ship["heading"] %= 360.0
-    ship["course"] = ship["heading"]
-    
-    # Tính quãng đường đi được trong dt (mét) - Nhân thêm hệ số 150 để mô phỏng tua nhanh thời gian (Time Warp) giúp thấy tàu chạy nhanh
-    speed_mps = ship["speed"] * 0.5144
-    distance = speed_mps * dt_seconds * 150
-    
-    # Đổi hướng sang radian
-    rad = math.radians(ship["heading"])
-    
-    # Tính toán độ dời Lat/Lon (xấp xỉ gần đúng trên mặt cầu)
-    delta_lat = (distance * math.cos(rad)) / 111111.0
-    delta_lon = (distance * math.sin(rad)) / (111111.0 * math.cos(math.radians(ship["latitude"])))
-    
-    new_lat = ship["latitude"] + delta_lat
-    new_lon = ship["longitude"] + delta_lon
-    
-    # Giữ tàu trong phạm vi bản đồ và không chạm vào đất liền.
-    # Nếu đi quá biên bản đồ hoặc đi vào đất liền, quay đầu (quay ngược 180 độ + lệch ngẫu nhiên) và không đổi vị trí.
-    out_of_bounds = not (LAT_MIN <= new_lat <= LAT_MAX) or not (LON_MIN <= new_lon <= LON_MAX)
-    
-    if out_of_bounds or is_on_land(new_lat, new_lon):
-        ship["heading"] = (ship["heading"] + 180.0 + random.uniform(-30.0, 30.0)) % 360.0
-        ship["course"] = ship["heading"]
-    else:
-        ship["latitude"] = new_lat
-        ship["longitude"] = new_lon
+    pass
 
 def main():
     print(f"Đang kết nối tới TCP Server {HOST}:{PORT}...")
@@ -153,14 +124,11 @@ def main():
         print("Vui lòng đảm bảo rằng ứng dụng ShipTracking của bạn đang chạy.")
         return
 
-    print("Bắt đầu mô phỏng gửi dữ liệu liên tục với tần suất 1s...")
-
-    last_update_time = time.time()
+    print("Bắt đầu mô phỏng gửi dữ liệu liên tục với tần suất 1s (tàu đứng yên)...")
 
     try:
         while True:
             current_time = time.time()
-            # Sử dụng dt_seconds = 1 giây làm bước nhảy vật lý của tàu
             dt_seconds = 1
 
             payload_parts = []
@@ -179,11 +147,11 @@ def main():
                 }
                 payload_parts.append(json.dumps(msg) + "\n")
 
-            # Ghép toàn bộ 1000 bản tin vào 1 gói TCP lớn và gửi đi để tối ưu hiệu năng mạng
+            # Ghép toàn bộ bản tin vào 1 gói TCP lớn và gửi đi
             payload = "".join(payload_parts)
             s.sendall(payload.encode('utf-8'))
 
-            print(f"[{time.strftime('%H:%M:%S')}] Đã gửi cập nhật vị trí cho {NUM_SHIPS} tàu.")
+            print(f"[{time.strftime('%H:%M:%S')}] Đã gửi cập nhật vị trí đứng yên cho {NUM_SHIPS} tàu.")
             
             # Đợi 1 giây trước khi gửi chu kỳ tiếp theo
             time.sleep(1)
@@ -198,4 +166,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-

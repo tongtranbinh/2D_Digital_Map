@@ -60,6 +60,9 @@ ApplicationWindow {
         detailPanel.visible = true;
         detailPanel.y = mapContainer.height - detailPanel.height - 20; // Trượt lên trên
         mapView.selectedShipId = shipId;
+
+        // Tự động định vị camera bản đồ tập trung vào tàu
+        mapView.mapObj.center = QtPositioning.coordinate(lat, lon);
     }
 
     // Kết nối tín hiệu C++ phát ra để đồng bộ với UI
@@ -70,6 +73,8 @@ ApplicationWindow {
             if (detailPanel.visible && detailPanel.shipId === shipId) {
                 detailPanel.isInsideZone = (eventType === "ENTER");
             }
+            // Hiển thị thông báo cảnh báo trên màn hình
+            alertBanner.addAlert(shipId, shipName, zoneId, zoneName, eventType, timeStr);
         }
     }
 
@@ -103,8 +108,6 @@ ApplicationWindow {
 
             onShipClicked: (shipId, name, mmsi, lat, lon, speed, heading, course, timeStr, insideZone) => {
                 showVesselDetails(shipId, name, mmsi, lat, lon, speed, heading, course, timeStr, insideZone);
-                // Tự động định vị camera bản đồ tập trung vào tàu
-                mapView.mapObj.center = QtPositioning.coordinate(lat, lon);
             }
         }
 
@@ -122,6 +125,187 @@ ApplicationWindow {
                 onShipSelected: (shipId, name, mmsi, lat, lon, speed, heading, course, timeStr, insideZone) => {
                     showVesselDetails(shipId, name, mmsi, lat, lon, speed, heading, course, timeStr, insideZone);
                 }
+
+                onMapClicked: (coordinate) => {
+                    if (isDrawingMode) {
+                        var path = drawingPath;
+                        path.push(coordinate);
+                        drawingPath = path; // Gán lại để QML kích hoạt cập nhật UI
+                    }
+                }
+            }
+
+            // Banner hiển thị danh sách cảnh báo trượt/ẩn tự động
+            AlertBanner {
+                id: alertBanner
+            }
+
+            // Nút bật/tắt Sidebar (Toggle Sidebar Button)
+            Button {
+                id: toggleSidebarBtn
+                width: 24
+                height: 50
+                anchors.left: parent.left
+                anchors.top: parent.top
+                anchors.leftMargin: sidebar.visible ? -width / 2 : 8
+                anchors.topMargin: 20
+                z: 1001
+                
+                text: sidebar.visible ? "◀" : "▶"
+                font.bold: true
+                font.pixelSize: 11
+                leftPadding: 0
+                rightPadding: 0
+
+                background: Rectangle {
+                    color: toggleSidebarBtn.hovered ? "#334155" : "#1e293b" // Slate 700 / Slate 800
+                    border.color: toggleSidebarBtn.hovered ? "#475569" : "#334155" // Slate 600 / Slate 700
+                    border.width: 1
+                    radius: 12
+                }
+                palette.buttonText: "#ffffff"
+
+                onClicked: {
+                    sidebar.visible = !sidebar.visible;
+                }
+            }
+
+            // Bảng điều khiển vẽ vùng cảnh báo (Drawing Control Panel)
+            Rectangle {
+                id: drawingPanel
+                width: 280
+                height: mapView.isDrawingMode ? 280 : 70
+                anchors.left: toggleSidebarBtn.right
+                anchors.top: parent.top
+                anchors.leftMargin: 10
+                anchors.topMargin: 20
+                z: 1000
+                radius: 8
+                color: "#1e293b" // Slate 800
+                border.color: "#334155" // Slate 700
+                border.width: 1
+                opacity: 0.95
+
+                // Hiệu ứng đổ bóng mờ
+                layer.enabled: true
+
+                ColumnLayout {
+                    anchors.fill: parent
+                    anchors.margins: 14
+                    spacing: 10
+
+                    Text {
+                        text: mapView.isDrawingMode ? "Vẽ vùng cảnh báo mới" : "Quản lý Geofence"
+                        color: "#f8fafc"
+                        font.bold: true
+                        font.pixelSize: 14
+                        Layout.fillWidth: true
+                    }
+
+                    // Nút để bắt đầu vẽ vùng mới
+                    Button {
+                        visible: !mapView.isDrawingMode
+                        text: "Thêm vùng cảnh báo"
+                        Layout.fillWidth: true
+                        onClicked: {
+                            mapView.isDrawingMode = true;
+                            mapView.drawingPath = [];
+                            zoneNameInput.text = "";
+                            zoneDescInput.text = "";
+                        }
+                        background: Rectangle {
+                            color: "#3b82f6" // Xanh dương
+                            radius: 4
+                        }
+                        palette.buttonText: "#ffffff"
+                    }
+
+                    // Form nhập liệu và điều khiển khi vẽ vùng
+                    ColumnLayout {
+                        visible: mapView.isDrawingMode
+                        Layout.fillWidth: true
+                        spacing: 8
+
+                        Text {
+                            text: "Click trên bản đồ để chấm các đỉnh. Cần ít nhất 3 điểm."
+                            color: "#94a3b8"
+                            font.pixelSize: 10
+                            wrapMode: Text.WordWrap
+                            Layout.fillWidth: true
+                        }
+
+                        Text {
+                            text: "Số điểm đã chấm: " + mapView.drawingPath.length
+                            color: mapView.drawingPath.length >= 3 ? "#10b981" : "#ef4444"
+                            font.bold: true
+                            font.pixelSize: 11
+                            Layout.fillWidth: true
+                        }
+
+                        TextField {
+                            id: zoneNameInput
+                            placeholderText: "Nhập tên vùng..."
+                            Layout.fillWidth: true
+                            color: "#f8fafc"
+                            placeholderTextColor: "#64748b"
+                            background: Rectangle {
+                                color: "#0f172a"
+                                border.color: "#334155"
+                                border.width: 1
+                                radius: 4
+                            }
+                        }
+
+                        TextField {
+                            id: zoneDescInput
+                            placeholderText: "Mô tả vùng..."
+                            Layout.fillWidth: true
+                            color: "#f8fafc"
+                            placeholderTextColor: "#64748b"
+                            background: Rectangle {
+                                color: "#0f172a"
+                                border.color: "#334155"
+                                border.width: 1
+                                radius: 4
+                            }
+                        }
+
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: 8
+
+                            Button {
+                                text: "Lưu"
+                                Layout.fillWidth: true
+                                enabled: mapView.drawingPath.length >= 3 && zoneNameInput.text.trim() !== ""
+                                onClicked: {
+                                    mapController.addAlertZone(zoneNameInput.text.trim(), zoneDescInput.text.trim(), mapView.drawingPath);
+                                    mapView.isDrawingMode = false;
+                                    mapView.drawingPath = [];
+                                }
+                                background: Rectangle {
+                                    color: parent.enabled ? "#10b981" : "#334155"
+                                    radius: 4
+                                }
+                                palette.buttonText: "#ffffff"
+                            }
+
+                            Button {
+                                text: "Hủy"
+                                Layout.fillWidth: true
+                                onClicked: {
+                                    mapView.isDrawingMode = false;
+                                    mapView.drawingPath = [];
+                                }
+                                background: Rectangle {
+                                    color: "#ef4444"
+                                    radius: 4
+                                }
+                                palette.buttonText: "#ffffff"
+                            }
+                        }
+                    }
+                }
             }
 
             // Panel thông tin chi tiết trượt lên dưới bản đồ khi được chọn
@@ -130,6 +314,18 @@ ApplicationWindow {
                 x: 20
                 y: parent.height + 20 // Trạng thái ẩn lúc đầu dưới đáy màn hình
                 visible: false
+
+                onLatitudeChanged: {
+                    if (visible && shipId !== "") {
+                        mapView.mapObj.center = QtPositioning.coordinate(latitude, longitude);
+                    }
+                }
+
+                onLongitudeChanged: {
+                    if (visible && shipId !== "") {
+                        mapView.mapObj.center = QtPositioning.coordinate(latitude, longitude);
+                    }
+                }
 
                 onVisibleChanged: {
                     if (visible) {

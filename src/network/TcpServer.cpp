@@ -30,7 +30,7 @@ TcpServer::TcpServer(PostgresConfig dbConfig, ShipStateStore &stateStore, QObjec
             posWorker, &PositionWorker::processRawMessage,
             Qt::QueuedConnection);
 
-    // 4. Kích hoạt Timer 30s của PositionWorker khi luồng của nó chính thức bắt đầu
+    // 4. Kích hoạt Timer 5s của PositionWorker khi luồng của nó chính thức bắt đầu
     connect(posWorkerThread, &QThread::started,
             posWorker, &PositionWorker::startTimer);
 
@@ -38,7 +38,7 @@ TcpServer::TcpServer(PostgresConfig dbConfig, ShipStateStore &stateStore, QObjec
     connect(shipWorkerThread, &QThread::started,
             shipWorker, &ShipWorker::initialize);
 
-    // 5. Kết nối Luồng PositionWorker -> Luồng ShipWorker (PostgreSQL DB, chu kỳ 30s)
+    // 5. Kết nối Luồng PositionWorker -> Luồng ShipWorker (PostgreSQL DB, chu kỳ 5s)
     connect(posWorker, &PositionWorker::pendingPacketsReady,
             shipWorker, &ShipWorker::savePendingPackets,
             Qt::QueuedConnection);
@@ -80,7 +80,7 @@ TcpServer::~TcpServer()
         delete posWorker;
     }
 
-
+ 
     if (shipWorker && shipWorkerThread && shipWorkerThread->isRunning()) {
         connect(shipWorker, &QObject::destroyed, shipWorkerThread, &QThread::quit, Qt::DirectConnection);
         shipWorker->deleteLater();

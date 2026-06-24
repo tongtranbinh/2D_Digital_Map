@@ -35,6 +35,9 @@ public slots:
     // Xử lý yêu cầu truy vấn lịch sử hành trình từ CSDL của UI
     void handleTrackHistoryRequest(const QUuid &vesselId);
 
+    // Xử lý yêu cầu ghi vùng cảnh báo mới xuống CSDL PostgreSQL từ UI thread
+    void handleSaveZoneRequest(const AlertZone &zone);
+
 signals:
     void dbErrorOccurred(const QString &error);
     void batchProcessed(int count);

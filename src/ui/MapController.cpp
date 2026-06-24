@@ -93,6 +93,52 @@ void MapController::handleAlertEvent(const AlertEvent &event)
                               event.eventType, timeStr);
 }
 
+void MapController::addAlertZone(const QString &name, const QString &description, const QVariantList &coordinates)
+{
+    if (coordinates.size() < 3) {
+        qWarning() << "[MapController] Cannot add alert zone with less than 3 points";
+        return;
+    }
+
+    AlertZone newZone;
+    newZone.id = QUuid::createUuid();
+    newZone.name = name;
+    newZone.description = description;
+    newZone.enabled = true;
+
+    for (const auto &var : coordinates) {
+        QGeoCoordinate geoCoord = var.value<QGeoCoordinate>();
+        if (geoCoord.isValid()) {
+            newZone.polygon.push_back(GeoPoint{geoCoord.longitude(), geoCoord.latitude()});
+        }
+    }
+
+    // Để khép kín đa giác theo yêu cầu địa lý, điểm cuối phải trùng điểm đầu
+    if (!newZone.polygon.isEmpty()) {
+        const auto &first = newZone.polygon.first();
+        const auto &last = newZone.polygon.last();
+        if (first.longitude != last.longitude || first.latitude != last.latitude) {
+            newZone.polygon.push_back(first);
+        }
+    }
+
+    // 1. Cập nhật vào RAM DB (ShipStateStore)
+    QVector<AlertZone> zones = m_stateStore.getAlertZones();
+    zones.push_back(newZone);
+    m_stateStore.setAlertZones(zones);
+
+    // 2. Cập nhật danh sách ID vùng hoạt động
+    m_activeZoneIds.push_back(newZone.id);
+
+    // 3. Cập nhật mô hình hiển thị của UI (ZoneListModel)
+    m_zoneModel->setZones(zones);
+
+    // 4. Phát tín hiệu yêu cầu ShipWorker lưu vào CSDL PostgreSQL
+    emit requestSaveZone(newZone);
+
+    qInfo() << "[MapController] Added new alert zone:" << name << "with" << newZone.polygon.size() << "points.";
+}
+
 QVariantList MapController::getTrackHistory(const QString &shipId) const
 {
     QVariantList list;

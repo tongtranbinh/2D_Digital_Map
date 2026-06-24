@@ -38,6 +38,9 @@ public:
     // Yêu cầu CSDL tải lịch sử hành trình cũ của tàu
     Q_INVOKABLE void loadTrackHistoryFromDb(const QString &shipId);
 
+    // Thêm vùng cảnh báo mới từ người dùng vẽ trên QML
+    Q_INVOKABLE void addAlertZone(const QString &name, const QString &description, const QVariantList &coordinates);
+
     // Thiết lập danh sách vùng cảnh báo ban đầu từ RAM cache
     void initZones();
 
@@ -62,6 +65,9 @@ signals:
 
     // Phát tín hiệu yêu cầu ShipWorker truy vấn CSDL
     void requestTrackHistory(const QUuid &vesselId);
+
+    // Phát tín hiệu yêu cầu ShipWorker ghi vùng cảnh báo mới xuống CSDL PostgreSQL
+    void requestSaveZone(const AlertZone &zone);
 
     void selectedShipIdChanged();
 

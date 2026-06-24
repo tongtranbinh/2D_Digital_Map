@@ -27,8 +27,8 @@ void PositionWorker::startTimer()
     if (!m_timer) {
         m_timer = new QTimer(this);
         connect(m_timer, &QTimer::timeout, this, &PositionWorker::flushPendingPackets);
-        m_timer->start(30000); // 30 giây
-        qInfo() << "[PositionWorker] Timer 30s started in background thread.";
+        m_timer->start(5000); // 5 giây
+        qInfo() << "[PositionWorker] Timer 5s started in background thread.";
     }
     if (!m_batchTimer) {
         m_batchTimer = new QTimer(this);
@@ -115,7 +115,7 @@ void PositionWorker::processBatch()
             }
         }
 
-        // 4. Lưu lại vào buffer 30 giây chờ đẩy xuống CSDL
+        // 4. Lưu lại vào buffer 5 giây chờ đẩy xuống CSDL
         m_pendingPackets.insert(msg.shipId, msg);
     }
 
@@ -132,7 +132,7 @@ void PositionWorker::flushPendingPackets()
         return;
     }
 
-    qInfo() << QStringLiteral("[PositionWorker] 30 seconds reached. Flushing %1 unique pending packets and %2 alert events to ShipWorker (DB)...")
+    qInfo() << QStringLiteral("[PositionWorker] 5 seconds reached. Flushing %1 unique pending packets and %2 alert events to ShipWorker (DB)...")
                .arg(m_pendingPackets.size())
                .arg(m_pendingAlertEvents.size());
 

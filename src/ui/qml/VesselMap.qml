@@ -22,6 +22,23 @@ MapView {
     // Lịch sử đường đi của tàu được chọn
     property var selectedShipTrack: []
 
+    // Trạng thái vẽ vùng cảnh báo mới
+    property bool isDrawingMode: false
+    property var drawingPath: []
+
+    // Tín hiệu khi click vào bản đồ
+    signal mapClicked(var coordinate)
+
+    // Nhận diện click chuột trên bản đồ để thêm điểm đa giác
+    TapHandler {
+        id: mapTapHandler
+        acceptedButtons: Qt.LeftButton
+        onTapped: (eventPoint, button) => {
+            var coord = root.map.toCoordinate(eventPoint.position);
+            root.mapClicked(coord);
+        }
+    }
+
     // MapView có thuộc tính 'map' tích hợp sẵn. Cung cấp alias mapObj để tương thích với main.qml
     property alias mapObj: root.map
 
@@ -53,7 +70,7 @@ MapView {
         }
         PluginParameter {
             name: "osm.mapping.custom.host"
-            value: "https://tile.openstreetmap.org/"
+            value: "http://localhost:8080/tile/"
         }
         PluginParameter {
             name: "osm.mapping.providerserial"
@@ -85,8 +102,7 @@ MapView {
         delegate: MapPolygon {
             path: pathPoints
             color: enabled ? "#40ff0000" : "#1594a3b8" // 25% opacity pure red for enabled geofences, light grey for disabled
-            border.color: enabled ? "#ff0000" : "#64748b" // Pure red border for enabled geofences, grey for disabled
-            border.width: 3.5
+            border.width: 0
         }
     }
 
@@ -97,6 +113,34 @@ MapView {
         line.width: 3.5
         path: root.selectedShipTrack
         visible: path.length > 0
+    }
+
+    // 2b. Vẽ đường đa giác dở dang của vùng mới đang tạo
+    MapPolyline {
+        parent: root.map
+        line.color: "#3b82f6" // Xanh dương
+        line.width: 3
+        path: root.drawingPath
+        visible: root.isDrawingMode && path.length > 0
+    }
+
+    // 2c. Vẽ các đỉnh đa giác dở dang của vùng mới dưới dạng chấm tròn
+    MapItemView {
+        parent: root.map
+        model: root.drawingPath
+        visible: root.isDrawingMode
+        delegate: MapQuickItem {
+            coordinate: modelData
+            anchorPoint: Qt.point(6, 6)
+            sourceItem: Rectangle {
+                width: 12
+                height: 12
+                radius: 6
+                color: "#3b82f6"
+                border.color: "#ffffff"
+                border.width: 1.5
+            }
+        }
     }
 
     // 3. Vẽ các Tàu biển trên Bản đồ

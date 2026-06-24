@@ -131,7 +131,7 @@ Rectangle {
                                 }
 
                                 Text {
-                                    text: "MMSI: " + mmsi + " | Vận tốc: " + speed.toFixed(1) + " kn"
+                                    text: "MMSI: " + mmsi + " | Vận tốc: " + speed.toFixed(1) + " km/h"
                                     color: "#64748b"
                                     font.pixelSize: 10
                                 }

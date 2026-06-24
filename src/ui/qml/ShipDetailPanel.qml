@@ -105,7 +105,7 @@ Rectangle {
             ColumnLayout {
                 spacing: 1
                 Text { text: "VẬN TỐC"; color: "#64748b"; font.pixelSize: 9; font.bold: true }
-                Text { text: speed.toFixed(1) + " knots"; color: "#f8fafc"; font.pixelSize: 13; font.bold: true }
+                Text { text: speed.toFixed(1) + " km/h"; color: "#f8fafc"; font.pixelSize: 13; font.bold: true }
             }
 
             // Hướng mũi
@@ -137,32 +137,6 @@ Rectangle {
             color: "#334155"
         }
 
-        // Hàng chân trang (Thời gian & Nút định vị)
-        RowLayout {
-            Layout.fillWidth: true
-
-            Text {
-                text: "Cập nhật: " + timestampStr
-                color: "#64748b"
-                font.pixelSize: 10
-                Layout.fillWidth: true
-            }
-
-            Button {
-                text: "Định vị trên bản đồ"
-                font.pixelSize: 11
-                font.bold: true
-                palette.buttonText: "#0f172a"
-                
-                background: Rectangle {
-                    implicitWidth: 120
-                    implicitHeight: 28
-                    radius: 4
-                    color: parent.hovered ? "#22d3ee" : "#06b6d4" // Bright cyan on hover
-                }
-                onClicked: root.centerRequested(latitude, longitude)
-            }
-        }
     }
 
     // Hiệu ứng trượt slide-in/out

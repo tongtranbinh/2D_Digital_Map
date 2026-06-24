@@ -18,6 +18,7 @@ int main(int argc, char *argv[])
     qRegisterMetaType<QVector<ShipMessage>>("QVector<ShipMessage>");
     qRegisterMetaType<AlertEvent>("AlertEvent");
     qRegisterMetaType<QVector<AlertEvent>>("QVector<AlertEvent>");
+    qRegisterMetaType<AlertZone>("AlertZone");
 
     // 1. Cấu hình Postgres
     PostgresConfig config;
@@ -63,6 +64,10 @@ int main(int argc, char *argv[])
 
     QObject::connect(server.dbWorker(), &ShipWorker::trackHistoryLoaded,
                      &mapController, &MapController::handleTrackHistoryLoaded,
+                     Qt::QueuedConnection);
+
+    QObject::connect(&mapController, &MapController::requestSaveZone,
+                     server.dbWorker(), &ShipWorker::handleSaveZoneRequest,
                      Qt::QueuedConnection);
 
     // 5. Khởi tạo Engine QML và tải giao diện chính

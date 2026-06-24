@@ -28,7 +28,7 @@ public slots:
     // Xử lý lô bản tin gom được sau mỗi 200ms (Cập nhật RAM & kiểm tra geofencing)
     void processBatch();
 
-    // Đẩy gói tin đã gom sau 30 giây sang ShipWorker và làm sạch bộ nhớ đệm
+    // Đẩy gói tin đã gom sau 5 giây sang ShipWorker và làm sạch bộ nhớ đệm
     void flushPendingPackets();
 
 signals:
