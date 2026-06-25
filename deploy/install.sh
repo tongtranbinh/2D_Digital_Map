@@ -40,14 +40,15 @@ info "Bước 2/6: Kiểm tra Qt6 runtime dependencies..."
 PKGS_MISSING=()
 for pkg in \
     libqt6core6 libqt6network6 libqt6widgets6 libqt6sql6 \
-    libqt6positioning6 libqt6qml6 libqt6quick6 \
+    libqt6sql6-psql libqt6positioning6 libqt6location6 libqt6qml6 libqt6quick6 \
     qt6-qpa-plugins \
     qml6-module-qtquick \
     qml6-module-qtquick-controls \
     qml6-module-qtquick-layouts \
     qml6-module-qtqml-workerscript \
     qml6-module-qtpositioning \
-    postgresql-client; do
+    qml6-module-qtlocation \
+    postgresql-client xvfb x11vnc novnc websockify; do
     dpkg -s "$pkg" &>/dev/null || PKGS_MISSING+=("$pkg")
 done
 
@@ -131,6 +132,12 @@ info "Bước 6/6: Cài đặt systemd service và cleanup timer..."
 # Backend service
 cp "$SCRIPT_DIR/shiptracking-backend.service" "/etc/systemd/system/$SERVICE_NAME.service"
 
+# UI demo services
+cp "$SCRIPT_DIR/shiptracking-xvfb.service"  "/etc/systemd/system/shiptracking-xvfb.service"
+cp "$SCRIPT_DIR/shiptracking-ui.service"    "/etc/systemd/system/shiptracking-ui.service"
+cp "$SCRIPT_DIR/shiptracking-vnc.service"   "/etc/systemd/system/shiptracking-vnc.service"
+cp "$SCRIPT_DIR/shiptracking-novnc.service" "/etc/systemd/system/shiptracking-novnc.service"
+
 # Cleanup service + timer
 cp "$SCRIPT_DIR/shiptracking-cleanup.service" "/etc/systemd/system/shiptracking-cleanup.service"
 cp "$SCRIPT_DIR/shiptracking-cleanup.timer"   "/etc/systemd/system/shiptracking-cleanup.timer"
@@ -142,6 +149,13 @@ systemctl daemon-reload
 # Bật và khởi động backend
 systemctl enable "$SERVICE_NAME"
 systemctl start  "$SERVICE_NAME"
+
+# Bật UI demo qua virtual display + VNC/noVNC
+systemctl enable shiptracking-xvfb.service shiptracking-ui.service shiptracking-vnc.service shiptracking-novnc.service
+systemctl restart shiptracking-xvfb.service
+systemctl restart shiptracking-ui.service
+systemctl restart shiptracking-vnc.service
+systemctl restart shiptracking-novnc.service
 
 # Bật cleanup timer (chạy hàng ngày lúc 00:00 UTC)
 systemctl enable shiptracking-cleanup.timer

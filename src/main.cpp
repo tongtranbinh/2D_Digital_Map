@@ -24,8 +24,14 @@ int main(int argc, char *argv[])
 
     qmlRegisterType<ShipRenderLayer>("ShipTracking", 1, 0, "ShipRenderLayer");
 
-    // 1. Cấu hình Postgres — đọc từ environment variables (xem deploy/shiptracking.env)
+    // Doc tat ca config tu environment variables (xem deploy/shiptracking.env)
     const QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
+
+    // Headless: backend service chay offscreen, khong can UI
+    // UI mode: chay voi display thuc (xcb) hoac Xvfb
+    const bool isHeadless = (env.value(QStringLiteral("QT_QPA_PLATFORM")) == QStringLiteral("offscreen"));
+
+    // 1. Cau hinh Postgres
     PostgresConfig config;
     config.host         = env.value(QStringLiteral("DB_HOST"),     QStringLiteral("localhost"));
     config.port         = env.value(QStringLiteral("DB_PORT"),     QStringLiteral("5432")).toInt();
@@ -37,27 +43,35 @@ int main(int argc, char *argv[])
         env.value(QStringLiteral("TCP_PORT"), QStringLiteral("9000")).toUInt()
     );
 
-    // 2. Khởi tạo Database trên RAM
+    // OSM Tile URL -- ghep tu OSM_TILE_HOST + OSM_TILE_PORT
+    const QString osmHost = env.value(QStringLiteral("OSM_TILE_HOST"), QStringLiteral("localhost"));
+    const QString osmPort = env.value(QStringLiteral("OSM_TILE_PORT"), QStringLiteral("8080"));
+    const QString tileUrl = QStringLiteral("http://%1:%2/tile/").arg(osmHost, osmPort);
+
+    // 2. Khoi tao RAM cache
     ShipStateStore stateStore;
 
-    // 3. Khởi tạo TCP Server và truyền cấu hình cùng RAM DB vào
+    // 3. Khoi tao TCP Server
     TcpServer server(config, stateStore);
 
     if (!server.start(tcpPort)) {
-        qDebug() << "Unable to start the server:" << server.errorString();
-        return 1;
+        if (isHeadless) {
+            // Backend mode: TCP la bat buoc
+            qCritical() << "[Main] FATAL: TCP server failed on port" << tcpPort << ":" << server.errorString();
+            return 1;
+        } else {
+            // UI mode: khong can TCP, doc data tu DB la du
+            qWarning() << "[Main] WARNING: TCP server failed on port" << tcpPort << "(port in use). Running in read-only UI mode.";
+        }
     }
 
-    // 4. Khởi tạo lớp Bridge MapController kết nối QML với RAM Cache
+    // 4. Khoi tao MapController ket noi QML voi RAM Cache
     MapController mapController(stateStore);
 
-    // Đồng bộ hóa bất đồng bộ khi khởi chạy: initZones chỉ được kích hoạt sau khi
-    // ShipWorker hoàn tất tải và lưu các vùng cảnh báo từ CSDL lên RAM.
     QObject::connect(server.dbWorker(), &ShipWorker::cachePreloaded,
                      &mapController, &MapController::initZones,
                      Qt::QueuedConnection);
 
-    // Kết nối các tín hiệu thời gian thực từ PositionWorker phụ sang MapController trong UI thread
     QObject::connect(server.positionWorker(), &PositionWorker::positionsUpdated,
                      &mapController, &MapController::handlePositionsUpdated,
                      Qt::QueuedConnection);
@@ -66,7 +80,6 @@ int main(int argc, char *argv[])
                      &mapController, &MapController::handleAlertEvent,
                      Qt::QueuedConnection);
 
-    // Kết nối bất đồng bộ yêu cầu và phản hồi truy vấn lịch sử hành trình từ CSDL (giữa UI thread và DB thread)
     QObject::connect(&mapController, &MapController::requestTrackHistory,
                      server.dbWorker(), &ShipWorker::handleTrackHistoryRequest,
                      Qt::QueuedConnection);
@@ -79,14 +92,11 @@ int main(int argc, char *argv[])
                      server.dbWorker(), &ShipWorker::handleSaveZoneRequest,
                      Qt::QueuedConnection);
 
-    // 5. Khoi tao Engine QML va tai giao dien chinh
-    // Headless mode (offscreen): skip QML -- backend chay tiep khong can UI
-    const bool isHeadless = (env.value(QStringLiteral("QT_QPA_PLATFORM")) == QStringLiteral("offscreen"));
-
+    // 5. QML Engine
     QQmlApplicationEngine engine;
     if (!isHeadless) {
-        // Dang ky mapController va tileUrl lam context property de QML goi duoc truc tiep
         engine.rootContext()->setContextProperty(QStringLiteral("mapController"), &mapController);
+        engine.rootContext()->setContextProperty(QStringLiteral("tileUrl"), tileUrl);
 
         const QUrl url(QStringLiteral("qrc:/ShipTracking/src/ui/qml/main.qml"));
         QObject::connect(&engine, &QQmlApplicationEngine::objectCreated,
