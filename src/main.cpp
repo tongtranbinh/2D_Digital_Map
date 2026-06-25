@@ -79,19 +79,25 @@ int main(int argc, char *argv[])
                      server.dbWorker(), &ShipWorker::handleSaveZoneRequest,
                      Qt::QueuedConnection);
 
-    // 5. Khởi tạo Engine QML và tải giao diện chính
+    // 5. Khoi tao Engine QML va tai giao dien chinh
+    // Headless mode (offscreen): skip QML -- backend chay tiep khong can UI
+    const bool isHeadless = (env.value(QStringLiteral("QT_QPA_PLATFORM")) == QStringLiteral("offscreen"));
+
     QQmlApplicationEngine engine;
+    if (!isHeadless) {
+        // Dang ky mapController va tileUrl lam context property de QML goi duoc truc tiep
+        engine.rootContext()->setContextProperty(QStringLiteral("mapController"), &mapController);
 
-    // Đăng ký mapController làm context property để QML gọi được trực tiếp
-    engine.rootContext()->setContextProperty(QStringLiteral("mapController"), &mapController);
-
-    const QUrl url(QStringLiteral("qrc:/ShipTracking/src/ui/qml/main.qml"));
-    QObject::connect(&engine, &QQmlApplicationEngine::objectCreated,
-                     &app, [url](QObject *obj, const QUrl &objUrl) {
-        if (!obj && url == objUrl)
-            QCoreApplication::exit(-1);
-    }, Qt::QueuedConnection);
-    engine.load(url);
+        const QUrl url(QStringLiteral("qrc:/ShipTracking/src/ui/qml/main.qml"));
+        QObject::connect(&engine, &QQmlApplicationEngine::objectCreated,
+                         &app, [url](QObject *obj, const QUrl &objUrl) {
+            if (!obj && url == objUrl)
+                QCoreApplication::exit(-1);
+        }, Qt::QueuedConnection);
+        engine.load(url);
+    } else {
+        qInfo() << "[Main] Headless mode: QML UI skipped. Backend running.";
+    }
 
     return app.exec();
 }

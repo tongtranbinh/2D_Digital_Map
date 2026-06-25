@@ -41,7 +41,15 @@ PKGS_MISSING=()
 for pkg in \
     libqt6core6 libqt6network6 libqt6widgets6 libqt6sql6 \
     libqt6positioning6 libqt6qml6 libqt6quick6 \
-    qt6-qpa-plugins postgresql-client; do
+    qt6-qpa-plugins \
+    qml6-module-qtquick \
+    qml6-module-qtquick-controls \
+    qml6-module-qtquick-layouts \
+    qml6-module-qtqml-workerscript \
+    qml6-module-qtpositioning \
+    qml6-module-qtlocation \
+    qml6-module-qtquick-window \
+    postgresql-client; do
     dpkg -s "$pkg" &>/dev/null || PKGS_MISSING+=("$pkg")
 done
 
