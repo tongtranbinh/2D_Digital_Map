@@ -1,0 +1,42 @@
+[Unit]
+Description=Ship Tracking — Backend Service (headless)
+Documentation=https://github.com/your-org/2D_Digital_Map
+After=docker.service network-online.target
+Wants=network-online.target
+Requires=docker.service
+
+[Service]
+Type=simple
+User=shiptracking
+Group=shiptracking
+WorkingDirectory=/opt/shiptracking
+
+# Load tất cả config từ file env — không hardcode gì trong service này
+EnvironmentFile=/opt/shiptracking/shiptracking.env
+
+# Chạy offscreen: không cần display, không tốn GPU/CPU render
+Environment=QT_QPA_PLATFORM=offscreen
+Environment=QT_LOGGING_RULES=*.debug=false;qt.qpa.*=false
+
+# Chờ DB sẵn sàng trước khi khởi động app (timeout 60s)
+ExecStartPre=/opt/shiptracking/deploy/wait-for-db.sh 60
+
+# Chạy binary từ /opt/shiptracking/bin/, không phải từ build/
+ExecStart=/opt/shiptracking/bin/ShipTrackingApp
+
+# Tự restart nếu crash, delay 5s
+Restart=on-failure
+RestartSec=5
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+# Giới hạn file descriptor (nhiều kết nối TCP đồng thời)
+LimitNOFILE=65536
+
+# Log ra journal
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=shiptracking-backend
+
+[Install]
+WantedBy=multi-user.target

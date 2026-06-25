@@ -2,6 +2,7 @@
 #include <QMetaType>
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
+#include <QProcessEnvironment>
 
 #include "model/VesselMessage.h"
 #include "network/tcpserver.h"
@@ -23,13 +24,18 @@ int main(int argc, char *argv[])
 
     qmlRegisterType<ShipRenderLayer>("ShipTracking", 1, 0, "ShipRenderLayer");
 
-    // 1. Cấu hình Postgres
+    // 1. Cấu hình Postgres — đọc từ environment variables (xem deploy/shiptracking.env)
+    const QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
     PostgresConfig config;
-    config.host = QStringLiteral("localhost");
-    config.port = 5432;
-    config.databaseName = QStringLiteral("ship_tracking"); 
-    config.userName = QStringLiteral("ship_user");     
-    config.password = QStringLiteral("123456");       
+    config.host         = env.value(QStringLiteral("DB_HOST"),     QStringLiteral("localhost"));
+    config.port         = env.value(QStringLiteral("DB_PORT"),     QStringLiteral("5432")).toInt();
+    config.databaseName = env.value(QStringLiteral("DB_NAME"),     QStringLiteral("ship_tracking"));
+    config.userName     = env.value(QStringLiteral("DB_USER"),     QStringLiteral("ship_user"));
+    config.password     = env.value(QStringLiteral("DB_PASSWORD"), QStringLiteral("123456"));
+
+    const quint16 tcpPort = static_cast<quint16>(
+        env.value(QStringLiteral("TCP_PORT"), QStringLiteral("9000")).toUInt()
+    );
 
     // 2. Khởi tạo Database trên RAM
     ShipStateStore stateStore;
@@ -37,7 +43,7 @@ int main(int argc, char *argv[])
     // 3. Khởi tạo TCP Server và truyền cấu hình cùng RAM DB vào
     TcpServer server(config, stateStore);
 
-    if (!server.start(9000)) {
+    if (!server.start(tcpPort)) {
         qDebug() << "Unable to start the server:" << server.errorString();
         return 1;
     }
