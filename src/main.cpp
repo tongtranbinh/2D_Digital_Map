@@ -100,9 +100,14 @@ int main(int argc, char *argv[])
 
         const QUrl url(QStringLiteral("qrc:/ShipTracking/src/ui/qml/main.qml"));
         QObject::connect(&engine, &QQmlApplicationEngine::objectCreated,
-                         &app, [url](QObject *obj, const QUrl &objUrl) {
-            if (!obj && url == objUrl)
-                QCoreApplication::exit(-1);
+                         &app, [url, isHeadless](QObject *obj, const QUrl &objUrl) {
+            if (!obj && url == objUrl) {
+                if (isHeadless) {
+                    QCoreApplication::exit(-1);
+                } else {
+                    qWarning() << "[Main] WARNING: QML failed to load. UI unavailable but backend continues.";
+                }
+            }
         }, Qt::QueuedConnection);
         engine.load(url);
     } else {

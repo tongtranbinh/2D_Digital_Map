@@ -8,7 +8,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 # Enable automoc for QObject-derived classes with Q_OBJECT
 set(CMAKE_AUTOMOC ON)
 
-find_package(Qt6 REQUIRED COMPONENTS Core Network Widgets Sql Positioning Qml Quick)
+find_package(Qt6 REQUIRED COMPONENTS Core Network Widgets Sql Positioning Qml Quick QuickControls2)
 
 add_executable(ShipTracking
     src/main.cpp
@@ -72,4 +72,5 @@ target_link_libraries(ShipTracking
     Qt6::Positioning
     Qt6::Qml
     Qt6::Quick
+    Qt6::QuickControls2
 )
