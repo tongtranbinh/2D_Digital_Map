@@ -47,15 +47,18 @@ for pkg in \
     qml6-module-qtquick-layouts \
     qml6-module-qtqml-workerscript \
     qml6-module-qtpositioning \
-    qml6-module-qtlocation \
-    qml6-module-qtquick-window \
     postgresql-client; do
     dpkg -s "$pkg" &>/dev/null || PKGS_MISSING+=("$pkg")
 done
 
 if [[ ${#PKGS_MISSING[@]} -gt 0 ]]; then
     info "  Cài đặt: ${PKGS_MISSING[*]}"
-    apt-get install -y "${PKGS_MISSING[@]}"
+    # Cài từng package, bỏ qua nếu không tìm thấy (không dừng toàn bộ install)
+    for pkg in "${PKGS_MISSING[@]}"; do
+        apt-get install -y "$pkg" 2>/dev/null \
+            && info "  Installed: $pkg" \
+            || warn "  Package '$pkg' not found on this distro, skipping."
+    done
 else
     info "  Tất cả dependencies đã có sẵn."
 fi
