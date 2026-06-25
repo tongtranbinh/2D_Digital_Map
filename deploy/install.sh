@@ -126,12 +126,26 @@ info "  Tất cả file đã được cài đặt."
 # ============================================================
 # BƯỚC 6: Cài và khởi động systemd service
 # ============================================================
-info "Bước 6/6: Cài đặt systemd service..."
+info "Bước 6/6: Cài đặt systemd service và cleanup timer..."
 
+# Backend service
 cp "$SCRIPT_DIR/shiptracking-backend.service" "/etc/systemd/system/$SERVICE_NAME.service"
+
+# Cleanup service + timer
+cp "$SCRIPT_DIR/shiptracking-cleanup.service" "/etc/systemd/system/shiptracking-cleanup.service"
+cp "$SCRIPT_DIR/shiptracking-cleanup.timer"   "/etc/systemd/system/shiptracking-cleanup.timer"
+cp "$SCRIPT_DIR/cleanup_history.sh"           "$INSTALL_DIR/deploy/cleanup_history.sh"
+chmod +x "$INSTALL_DIR/deploy/cleanup_history.sh"
+
 systemctl daemon-reload
+
+# Bật và khởi động backend
 systemctl enable "$SERVICE_NAME"
 systemctl start  "$SERVICE_NAME"
+
+# Bật cleanup timer (chạy hàng ngày lúc 00:00 UTC)
+systemctl enable shiptracking-cleanup.timer
+systemctl start  shiptracking-cleanup.timer
 
 sleep 2
 if systemctl is-active --quiet "$SERVICE_NAME"; then

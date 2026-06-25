@@ -1,0 +1,13 @@
+[Unit]
+Description=Ship Tracking — Virtual Display (Xvfb)
+After=network.target
+
+[Service]
+Type=simple
+User=shiptracking
+ExecStart=/usr/bin/Xvfb :20 -screen 0 1920x1080x24
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

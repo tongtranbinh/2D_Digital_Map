@@ -1,0 +1,13 @@
+[Unit]
+Description=Ship Tracking — Daily History Cleanup Timer
+
+[Timer]
+# Chạy mỗi ngày lúc 00:00 UTC
+OnCalendar=*-*-* 00:00:00 UTC
+# Chạy ngay khi boot nếu lần trước bị bỏ lỡ (ví dụ server bị tắt)
+Persistent=true
+# Trễ ngẫu nhiên tối đa 5 phút để tránh spike
+RandomizedDelaySec=300
+
+[Install]
+WantedBy=timers.target

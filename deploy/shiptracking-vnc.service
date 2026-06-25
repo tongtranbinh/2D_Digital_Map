@@ -1,0 +1,15 @@
+[Unit]
+Description=Ship Tracking — x11vnc (VNC server for UI display)
+After=shiptracking-xvfb.service shiptracking-ui.service
+Requires=shiptracking-xvfb.service
+
+[Service]
+Type=simple
+User=shiptracking
+ExecStartPre=/bin/sleep 3
+ExecStart=/usr/bin/x11vnc -display :20 -nopw -listen 0.0.0.0 -forever -shared
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

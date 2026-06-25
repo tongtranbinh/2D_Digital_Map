@@ -13,7 +13,8 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 INSTALL_DIR="$(dirname "$SCRIPT_DIR")"
 BINARY="$INSTALL_DIR/bin/ShipTrackingApp"
-ENV_FILE="$SCRIPT_DIR/shiptracking.env"
+# Env file nằm ở /opt/shiptracking/shiptracking.env (không phải trong deploy/)
+ENV_FILE="$INSTALL_DIR/shiptracking.env"
 USE_XVFB=false
 
 # --- Parse args ---

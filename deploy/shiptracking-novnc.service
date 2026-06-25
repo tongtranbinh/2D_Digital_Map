@@ -1,0 +1,14 @@
+[Unit]
+Description=Ship Tracking — noVNC Web Browser UI
+After=shiptracking-vnc.service
+Requires=shiptracking-vnc.service
+
+[Service]
+Type=simple
+User=shiptracking
+ExecStart=/usr/bin/websockify --web /usr/share/novnc 6080 localhost:5900
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

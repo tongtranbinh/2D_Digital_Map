@@ -1,0 +1,22 @@
+[Unit]
+Description=Ship Tracking — UI Demo (Qt/QML on virtual display)
+After=shiptracking-xvfb.service shiptracking-backend.service
+Requires=shiptracking-xvfb.service
+
+[Service]
+Type=simple
+User=shiptracking
+WorkingDirectory=/opt/shiptracking
+EnvironmentFile=/opt/shiptracking/shiptracking.env
+Environment=DISPLAY=:20
+Environment=QT_QPA_PLATFORM=xcb
+Environment=QT_LOGGING_RULES=*.debug=false
+ExecStartPre=/opt/shiptracking/deploy/wait-for-db.sh 60
+# Chạy trên port khác để không xung đột với backend (port 9000)
+Environment=TCP_PORT=9001
+ExecStart=/opt/shiptracking/bin/ShipTrackingApp
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
