@@ -182,3 +182,21 @@ void ShipWorker::handleSaveZoneRequest(const AlertZone &zone)
         qWarning() << "[ShipWorker] Failed to save zone to DB:" << error;
     }
 }
+
+void ShipWorker::handleDeleteZoneRequest(const QUuid &zoneId)
+{
+    if (!m_db) {
+        initialize();
+    }
+    if (!m_db || (!m_db->isOpen() && !m_db->open())) {
+        qWarning() << "[ShipWorker] DB connection not open, cannot delete zone";
+        return;
+    }
+
+    QString error;
+    if (m_alertService->deleteZone(zoneId, &error)) {
+        qInfo() << "[ShipWorker] Successfully deleted zone from DB:" << zoneId.toString();
+    } else {
+        qWarning() << "[ShipWorker] Failed to delete zone from DB:" << error;
+    }
+}

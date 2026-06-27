@@ -139,6 +139,39 @@ void MapController::addAlertZone(const QString &name, const QString &description
     qInfo() << "[MapController] Added new alert zone:" << name << "with" << newZone.polygon.size() << "points.";
 }
 
+void MapController::deleteAlertZone(const QString &zoneIdStr)
+{
+    QUuid zoneId = QUuid::fromString(zoneIdStr);
+    if (zoneId.isNull() && !zoneIdStr.isEmpty()) {
+        zoneId = QUuid::fromString("{" + zoneIdStr + "}");
+    }
+    if (zoneId.isNull()) {
+        return;
+    }
+
+    // 1. Cập nhật vào RAM DB (ShipStateStore) - lọc bỏ zone bị xóa
+    QVector<AlertZone> zones = m_stateStore.getAlertZones();
+    QVector<AlertZone> updatedZones;
+    updatedZones.reserve(zones.size());
+    for (const auto &zone : zones) {
+        if (zone.id != zoneId) {
+            updatedZones.push_back(zone);
+        }
+    }
+    m_stateStore.setAlertZones(updatedZones);
+
+    // 2. Cập nhật danh sách ID vùng hoạt động
+    m_activeZoneIds.removeAll(zoneId);
+
+    // 3. Cập nhật mô hình hiển thị của UI (ZoneListModel)
+    m_zoneModel->setZones(updatedZones);
+
+    // 4. Phát tín hiệu yêu cầu ShipWorker xóa khỏi CSDL PostgreSQL
+    emit requestDeleteZone(zoneId);
+
+    qInfo() << "[MapController] Deleted alert zone ID:" << zoneIdStr;
+}
+
 QVariantList MapController::getTrackHistory(const QString &shipId) const
 {
     QVariantList list;

@@ -13,8 +13,10 @@ Rectangle {
     property bool collapsed: false
     readonly property int collapsedWidth: 48
     readonly property int expandedWidth: 320
+    property string currentTab: "ships" // "ships" or "zones"
 
     signal shipClicked(string shipId, string name, var mmsi, double lat, double lon, double speed, double heading, double course, string timeStr, bool insideZone)
+    signal zoneClicked(string zoneId, var pathPoints)
 
     Behavior on width {
         NumberAnimation { duration: 180; easing.type: Easing.OutCubic }
@@ -66,9 +68,66 @@ Rectangle {
             color: "#1e293b"
         }
 
+        // Segmented Control Tabs
+        RowLayout {
+            Layout.fillWidth: true
+            height: 36
+            spacing: 4
+
+            Rectangle {
+                Layout.fillWidth: true
+                height: 32
+                color: root.currentTab === "ships" ? "#1e293b" : "transparent"
+                radius: 6
+
+                Text {
+                    anchors.centerIn: parent
+                    text: "Tàu Biển"
+                    color: root.currentTab === "ships" ? "#f8fafc" : "#64748b"
+                    font.bold: true
+                    font.pixelSize: 12
+                }
+
+                MouseArea {
+                    anchors.fill: parent
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: root.currentTab = "ships"
+                }
+            }
+
+            Rectangle {
+                Layout.fillWidth: true
+                height: 32
+                color: root.currentTab === "zones" ? "#1e293b" : "transparent"
+                radius: 6
+
+                Text {
+                    anchors.centerIn: parent
+                    text: "Vùng Cảnh Báo"
+                    color: root.currentTab === "zones" ? "#f8fafc" : "#64748b"
+                    font.bold: true
+                    font.pixelSize: 12
+                }
+
+                MouseArea {
+                    anchors.fill: parent
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: root.currentTab = "zones"
+                }
+            }
+        }
+
+        Rectangle {
+            Layout.fillWidth: true
+            height: 1
+            color: "#1e293b"
+        }
+
         RowLayout {
             Layout.fillWidth: true
             spacing: 8
+            visible: root.currentTab === "ships"
+            Layout.preferredHeight: visible ? 58 : 0
 
             Rectangle {
                 Layout.fillWidth: true
@@ -132,7 +191,8 @@ Rectangle {
         ListView {
             id: shipListView
             Layout.fillWidth: true
-            Layout.fillHeight: true
+            Layout.fillHeight: root.currentTab === "ships"
+            visible: root.currentTab === "ships"
             spacing: 4
             clip: true
             model: mapController.shipModel
@@ -215,6 +275,98 @@ Rectangle {
                     }
                 }
             }
+        }
+
+        ListView {
+            id: zoneListView
+            Layout.fillWidth: true
+            Layout.fillHeight: root.currentTab === "zones"
+            visible: root.currentTab === "zones"
+            spacing: 4
+            clip: true
+            model: mapController.zoneModel
+
+            delegate: Rectangle {
+                id: zoneDelegate
+                width: zoneListView.width
+                height: 56
+                radius: 6
+                color: hoverArea.containsMouse ? "#1e293b80" : "transparent"
+
+                MouseArea {
+                    id: hoverArea
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: {
+                        root.zoneClicked(zoneId, pathPoints);
+                    }
+                }
+
+                RowLayout {
+                    anchors.fill: parent
+                    anchors.margins: 10
+                    spacing: 12
+
+                    Rectangle {
+                        width: 8
+                        height: 8
+                        radius: 4
+                        color: enabled ? "#ef4444" : "#94a3b8"
+                    }
+
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        spacing: 2
+
+                        Text {
+                            text: zoneName
+                            color: "#f8fafc"
+                            font.bold: true
+                            font.pixelSize: 13
+                            elide: Text.ElideRight
+                            Layout.fillWidth: true
+                        }
+
+                        Text {
+                            text: description ? description : "Không có mô tả"
+                            color: "#64748b"
+                            font.pixelSize: 10
+                            elide: Text.ElideRight
+                            Layout.fillWidth: true
+                        }
+                    }
+
+                    ToolButton {
+                        id: deleteZoneBtn
+                        text: "✕"
+                        font.pixelSize: 12
+                        font.bold: true
+                        palette.buttonText: deleteZoneBtn.hovered ? "#ef4444" : "#64748b"
+
+                        background: Rectangle {
+                            color: deleteZoneBtn.hovered ? "#7f1d1d33" : "transparent"
+                            radius: 4
+                        }
+
+                        onClicked: {
+                            mapController.deleteAlertZone(zoneId);
+                        }
+                    }
+                }
+            }
+        }
+
+        Text {
+            text: "Chưa có vùng cảnh báo nào.\nHãy thêm mới bằng cách vẽ trên bản đồ."
+            color: "#64748b"
+            font.pixelSize: 12
+            horizontalAlignment: Text.AlignHCenter
+            lineHeight: 1.3
+            visible: root.currentTab === "zones" && zoneListView.count === 0
+            Layout.fillWidth: true
+            Layout.alignment: Qt.AlignHCenter | Qt.AlignVCenter
+            Layout.topMargin: 40
         }
     }
 }

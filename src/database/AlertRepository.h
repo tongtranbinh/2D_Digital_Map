@@ -15,6 +15,7 @@ public:
     virtual ~IAlertRepository() = default;
 
     virtual bool saveZone(AlertZone &zone, QString *error = nullptr) = 0;
+    virtual bool deleteZone(const QUuid &id, QString *error = nullptr) = 0;
     virtual std::optional<AlertZone> findZoneById(const QUuid &id, QString *error = nullptr) const = 0;
     virtual QVector<AlertZone> listZones(QString *error = nullptr) const = 0;
 
@@ -33,6 +34,7 @@ public:
     explicit AlertRepository(PostgresConnection &connection);
 
     bool saveZone(AlertZone &zone, QString *error = nullptr) override;
+    bool deleteZone(const QUuid &id, QString *error = nullptr) override;
     std::optional<AlertZone> findZoneById(const QUuid &id, QString *error = nullptr) const override;
     QVector<AlertZone> listZones(QString *error = nullptr) const override;
 

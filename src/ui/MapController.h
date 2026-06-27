@@ -41,6 +41,9 @@ public:
     // Thêm vùng cảnh báo mới từ người dùng vẽ trên QML
     Q_INVOKABLE void addAlertZone(const QString &name, const QString &description, const QVariantList &coordinates);
 
+    // Xóa vùng cảnh báo
+    Q_INVOKABLE void deleteAlertZone(const QString &zoneIdStr);
+
     // Thiết lập danh sách vùng cảnh báo ban đầu từ RAM cache
     void initZones();
 
@@ -68,6 +71,9 @@ signals:
 
     // Phát tín hiệu yêu cầu ShipWorker ghi vùng cảnh báo mới xuống CSDL PostgreSQL
     void requestSaveZone(const AlertZone &zone);
+
+    // Phát tín hiệu yêu cầu ShipWorker xóa vùng cảnh báo khỏi CSDL PostgreSQL
+    void requestDeleteZone(const QUuid &zoneId);
 
     void selectedShipIdChanged();
 

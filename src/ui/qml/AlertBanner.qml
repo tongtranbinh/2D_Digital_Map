@@ -122,7 +122,8 @@ Item {
             }
 
             // Hiệu ứng xuất hiện
-            ListView.onAdd: SequentialAnimation {
+            SequentialAnimation {
+                id: addAnim
                 PropertyAction { target: alertCard; property: "scale"; value: 0.8 }
                 PropertyAction { target: alertCard; property: "opacity"; value: 0 }
                 ParallelAnimation {
@@ -131,14 +132,22 @@ Item {
                 }
             }
 
+            Component.onCompleted: addAnim.start()
+
             // Hiệu ứng biến mất
-            ListView.onRemove: SequentialAnimation {
+            SequentialAnimation {
+                id: removeAnim
+                onStarted: ListView.delayRemove = true
+                onFinished: ListView.delayRemove = false
+
                 ParallelAnimation {
                     NumberAnimation { target: alertCard; property: "scale"; to: 0.8; duration: 200 }
                     NumberAnimation { target: alertCard; property: "opacity"; to: 0; duration: 200 }
                     NumberAnimation { target: alertCard; property: "height"; to: 0; duration: 200 }
                 }
             }
+
+            ListView.onRemove: removeAnim.start()
         }
     }
 }

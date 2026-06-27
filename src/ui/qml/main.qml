@@ -109,6 +109,13 @@ ApplicationWindow {
             onShipClicked: (shipId, name, mmsi, lat, lon, speed, heading, course, timeStr, insideZone) => {
                 showVesselDetails(shipId, name, mmsi, lat, lon, speed, heading, course, timeStr, insideZone);
             }
+
+            onZoneClicked: (zoneId, pathPoints) => {
+                if (pathPoints && pathPoints.length > 0) {
+                    mapView.mapObj.center = pathPoints[0];
+                    mapView.mapObj.zoomLevel = 10;
+                }
+            }
         }
 
         // 2. Khu vực Bản đồ bên phải
@@ -139,7 +146,7 @@ ApplicationWindow {
             AlertBanner {
                 id: alertBanner
             }
-            // B?ng di?u khi?n v? v�ng c?nh b�o (Drawing Control Panel)
+            // Bo dieu khien ve vung canh bao (Drawing Control Panel)
             Rectangle {
                 id: drawingPanel
                 width: 280
@@ -216,6 +223,8 @@ ApplicationWindow {
                             placeholderText: "Nhập tên vùng..."
                             Layout.fillWidth: true
                             color: "#f8fafc"
+                            font.family: "Segoe UI"
+                            font.pixelSize: 13
                             placeholderTextColor: "#64748b"
                             background: Rectangle {
                                 color: "#0f172a"
@@ -230,6 +239,8 @@ ApplicationWindow {
                             placeholderText: "Mô tả vùng..."
                             Layout.fillWidth: true
                             color: "#f8fafc"
+                            font.family: "Segoe UI"
+                            font.pixelSize: 13
                             placeholderTextColor: "#64748b"
                             background: Rectangle {
                                 color: "#0f172a"

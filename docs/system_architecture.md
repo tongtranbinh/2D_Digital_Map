@@ -153,7 +153,77 @@ sequenceDiagram
     SW-->>PW: Phát tín hiệu hoàn thành (batchProcessed)
 ```
 
+### Workflow 4: Hiển thị dữ liệu lên giao diện (UI Data Display & Rendering Workflow)
+
+Quy trình hiển thị dữ liệu lên giao diện (UI) được thiết kế nhằm đảm bảo tính mượt mà (60 FPS) khi vẽ hàng ngàn tàu di chuyển thời gian thực, đồng thời duy trì tính nhất quán dữ liệu giữa luồng nghiệp vụ/CSDL và luồng giao diện chính (Main/UI Thread).
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant UI as QML View / ShipRenderLayer
+    participant MC as MapController (UI Thread)
+    participant PW as PositionWorker (Pos Thread)
+    participant Store as ShipStateStore (RAM)
+    participant SW as ShipWorker (DB Thread)
+    participant PG as PostgreSQL
+
+    %% 1. Real-time Vessel updates
+    Note over PW, UI: 1. Luồng cập nhật tàu thời gian thực
+    PW->>MC: emit positionsUpdated(positions) [QueuedConnection]
+    MC->>Store: getShipZoneState() & getAlertZones() (Đọc RAM lock-free)
+    MC->>MC: Cập nhật RAM track history (max 100 điểm)
+    MC->>UI: Cập nhật ShipListModel (Kích hoạt Qt Scene Graph vẽ lại tàu)
+
+    %% 2. Historical Track
+    Note over UI, PG: 2. Luồng truy vấn hành trình lịch sử
+    UI->>MC: loadTrackHistoryFromDb(shipId)
+    MC->>SW: emit requestTrackHistory(vesselId) [QueuedConnection]
+    SW->>PG: Truy vấn positions (tối đa N điểm cũ)
+    PG-->>SW: Trả về danh sách vị trí
+    SW->>MC: emit trackHistoryLoaded(vesselId, history) [QueuedConnection]
+    MC->>UI: emit trackHistoryUpdated() -> Vẽ MapPolyline lên bản đồ
+
+    %% 3. Alert Display
+    Note over PW, UI: 3. Luồng hiển thị cảnh báo Geofence
+    PW->>MC: emit alertEventOccurred(AlertEvent) [QueuedConnection]
+    MC->>Store: Lấy thông tin Vùng cảnh báo từ RAM
+    MC->>UI: emit vesselAlertTriggered() -> Hiển thị AlertBanner
+
+    %% 4. Add Zone
+    Note over UI, PG: 4. Luồng vẽ & lưu vùng cảnh báo mới
+    UI->>MC: addAlertZone(name, desc, coordinates)
+    MC->>Store: Thêm vùng mới vào RAM Cache (Đồng bộ tức thời)
+    MC->>UI: Cập nhật ZoneListModel -> Render MapPolygon
+    MC->>SW: emit requestSaveZone(newZone) [QueuedConnection]
+    SW->>PG: INSERT INTO app.alert_zones (PostGIS geometry)
+```
+
+#### Chi tiết các luồng xử lý:
+
+1. **Cập nhật và hiển thị vị trí tàu thời gian thực**:
+   * **Băng qua ranh giới luồng**: Cứ mỗi `200ms`, luồng phụ [PositionWorker](file:///D:/Document/LapTrinh/VDT/2D_Digital_Map/src/worker/PositionWorker.h) phát ra tín hiệu `positionsUpdated` chứa danh sách tàu mới. Lớp [MapController](file:///D:/Document/LapTrinh/VDT/2D_Digital_Map/src/ui/MapController.h) (chạy trên Main Thread) đón nhận tín hiệu này bằng cơ chế kết nối hàng đợi `Qt::QueuedConnection`, đảm bảo an toàn luồng (thread-safety).
+   * **Truy xuất thông tin Geofence**: [MapController](file:///D:/Document/LapTrinh/VDT/2D_Digital_Map/src/ui/MapController.h) truy cập nhanh vào [ShipStateStore](file:///D:/Document/LapTrinh/VDT/2D_Digital_Map/src/state/ShipStateStore.h) (RAM Cache) thông qua các hàm đọc Lock-free (`getShipZoneState`) để xác định trạng thái trong/ngoài vùng cảnh báo của các tàu vừa cập nhật.
+   * **Cập nhật Model**: Dữ liệu vị trí được chuyển vào [ShipListModel](file:///D:/Document/LapTrinh/VDT/2D_Digital_Map/src/ui/ShipListModel.h) (`QAbstractListModel`), tự động kích hoạt cập nhật giao diện thông qua các cơ chế Signal/Slot của Qt Model-View.
+   * **Tối ưu hóa hiển thị (Scene Graph Rendering)**: Lớp custom [ShipRenderLayer](file:///D:/Document/LapTrinh/VDT/2D_Digital_Map/src/ui/ShipRenderLayer.h) (`QQuickItem`) tiếp nhận Model cập nhật. Thay vì sinh hàng ngàn đối tượng QML nặng nề, [ShipRenderLayer](file:///D:/Document/LapTrinh/VDT/2D_Digital_Map/src/ui/ShipRenderLayer.h) thực hiện ánh xạ tọa độ (Projection) sang điểm ảnh (pixels) và tự động xây dựng lại danh sách đỉnh đồ họa (`QSGGeometry::ColoredPoint2D`). Toàn bộ tiến trình vẽ được giao cho luồng render đồ họa phần cứng chuyên biệt của Qt Scene Graph, hiển thị tàu thường có màu xanh lục/cyan và tàu cảnh báo (vi phạm Geofence) có màu đỏ nổi bật.
+
+2. **Truy vấn và vẽ hành trình lịch sử từ cơ sở dữ liệu**:
+   * **Kích hoạt sự kiện**: Khi người dùng click chọn một tàu cụ thể trên bản đồ hoặc danh sách bên lề, QML gửi yêu cầu `loadTrackHistoryFromDb(shipId)` đến [MapController](file:///D:/Document/LapTrinh/VDT/2D_Digital_Map/src/ui/MapController.h).
+   * **Truy vấn bất đồng bộ**: [MapController](file:///D:/Document/LapTrinh/VDT/2D_Digital_Map/src/ui/MapController.h) phát tín hiệu `requestTrackHistory(vesselId)` yêu cầu luồng CSDL [ShipWorker](file:///D:/Document/LapTrinh/VDT/2D_Digital_Map/src/worker/ShipWorker.h) làm việc. Luồng CSDL thực hiện truy vấn thông qua repository và nạp danh sách lịch sử vị trí từ PostgreSQL/PostGIS.
+   * **Vẽ hành trình**: Khi nạp xong, [ShipWorker](file:///D:/Document/LapTrinh/VDT/2D_Digital_Map/src/worker/ShipWorker.h) phát tín hiệu `trackHistoryLoaded` truyền ngược kết quả lại cho [MapController](file:///D:/Document/LapTrinh/VDT/2D_Digital_Map/src/ui/MapController.h) (UI Thread). Lịch sử được chuẩn hóa thứ tự thời gian và lưu trữ vào RAM cache tạm thời của [MapController](file:///D:/Document/LapTrinh/VDT/2D_Digital_Map/src/ui/MapController.h) (`m_trackHistories`). UI lắng nghe tín hiệu `trackHistoryUpdated` và vẽ đường nối hành trình thông qua thành phần `MapPolyline` trên lớp bản đồ OSM.
+
+3. **Hiển thị banner cảnh báo vi phạm Geofence**:
+   * Khi tàu đi vào (`ENTER`) hoặc đi ra khỏi (`EXIT`) vùng cảnh báo, luồng phụ [PositionWorker](file:///D:/Document/LapTrinh/VDT/2D_Digital_Map/src/worker/PositionWorker.h) phát tín hiệu `alertEventOccurred(AlertEvent)`.
+   * [MapController](file:///D:/Document/LapTrinh/VDT/2D_Digital_Map/src/ui/MapController.h) phân tích sự kiện, giải quyết tên tàu tương ứng từ cache và tên vùng tương ứng từ [ShipStateStore](file:///D:/Document/LapTrinh/VDT/2D_Digital_Map/src/state/ShipStateStore.h).
+   * Một tín hiệu `vesselAlertTriggered` được phát trực tiếp tới QML Engine. Thành phần QML [AlertBanner.qml](file:///D:/Document/LapTrinh/VDT/2D_Digital_Map/src/ui/qml/AlertBanner.qml) sẽ trượt ra từ đỉnh màn hình để hiển thị thông tin cảnh báo (Tên tàu, Trạng thái vi phạm, Tên vùng, Thời gian xảy ra) và tự động ẩn đi sau một khoảng thời gian.
+
+4. **Tạo mới và đồng bộ vùng cảnh báo địa lý (Geofences)**:
+   * **Vẽ tương tác**: Người dùng bật chế độ vẽ vùng (`isDrawingMode`) trên bản đồ và click các vị trí để tạo các đỉnh cho đa giác (`drawingPath`).
+   * **Lưu vùng**: Khi nhấn nút hoàn tất, QML gọi hàm `mapController.addAlertZone`.
+   * **Đồng bộ RAM Cache tức thời**: [MapController](file:///D:/Document/LapTrinh/VDT/2D_Digital_Map/src/ui/MapController.h) khép kín đa giác địa lý, chèn trực tiếp vào RAM Cache [ShipStateStore](file:///D:/Document/LapTrinh/VDT/2D_Digital_Map/src/state/ShipStateStore.h) và cập nhật [ZoneListModel](file:///D:/Document/LapTrinh/VDT/2D_Digital_Map/src/ui/ZoneListModel.h) để giao diện bản đồ vẽ ngay vùng đa giác mới thông qua thành phần `MapPolygon` của QML.
+   * **Ghi đĩa bất đồng bộ**: [MapController](file:///D:/Document/LapTrinh/VDT/2D_Digital_Map/src/ui/MapController.h) đồng thời gửi tín hiệu `requestSaveZone` xuống luồng CSDL. [ShipWorker](file:///D:/Document/LapTrinh/VDT/2D_Digital_Map/src/worker/ShipWorker.h) sẽ đảm nhận việc lưu trữ đa giác mới xuống PostgreSQL/PostGIS bất đồng bộ để tránh gây treo hay đơ cứng giao diện người dùng.
+
 ---
+
 
 ## 4. Các tính năng và thành phần đã hoàn thiện
 

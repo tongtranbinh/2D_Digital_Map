@@ -73,6 +73,10 @@ int main(int argc, char *argv[])
                      server.dbWorker(), &ShipWorker::handleSaveZoneRequest,
                      Qt::QueuedConnection);
 
+    QObject::connect(&mapController, &MapController::requestDeleteZone,
+                     server.dbWorker(), &ShipWorker::handleDeleteZoneRequest,
+                     Qt::QueuedConnection);
+
     // 5. Khởi tạo Engine QML và tải giao diện chính
     QQmlApplicationEngine engine;
 

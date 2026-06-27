@@ -16,6 +16,7 @@ class IAlertService
 public:
     virtual ~IAlertService() = default;
     virtual bool saveZone(AlertZone &zone, QString *error = nullptr) = 0;
+    virtual bool deleteZone(const QUuid &id, QString *error = nullptr) = 0;
     virtual std::optional<AlertZone> getZoneById(const QUuid &id, QString *error = nullptr) const = 0;
     virtual QVector<AlertZone> getAllZones(QString *error = nullptr) const = 0;
     virtual bool logEvent(AlertEvent &event, QString *error = nullptr) = 0;
@@ -36,6 +37,7 @@ public:
     explicit AlertService(IAlertRepository &repository);
 
     bool saveZone(AlertZone &zone, QString *error = nullptr) override;
+    bool deleteZone(const QUuid &id, QString *error = nullptr) override;
     std::optional<AlertZone> getZoneById(const QUuid &id, QString *error = nullptr) const override;
     QVector<AlertZone> getAllZones(QString *error = nullptr) const override;
     bool logEvent(AlertEvent &event, QString *error = nullptr) override;

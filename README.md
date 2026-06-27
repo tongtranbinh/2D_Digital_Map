@@ -6,6 +6,7 @@ Hệ thống được phát triển bằng ngôn ngữ **C++ (C++17)**, framewor
 
 ## Tài liệu Dự án
 *   [Kiến trúc Hệ thống & Workflow Chi tiết](file:///D:/Document/LapTrinh/VDT/2D_Digital_Map/docs/system_architecture.md): Tài liệu chi tiết mô tả cấu trúc các lớp (Models, Repositories, Services, Workers), cơ chế quản lý trạng thái COW (Copy-On-Write) với Lock-free Reads, thuật toán kiểm tra Geofencing Ray-Casting và quy trình lưu trữ CSDL tối ưu hóa hiệu năng (Batching & Transactions).
+*   [Kịch Bản Demo Hệ Thống](file:///D:/Document/LapTrinh/VDT/2D_Digital_Map/docs/demo_scenario.md): Hướng dẫn từng bước cách chuẩn bị môi trường, nạp dữ liệu mẫu, biên dịch C++/Qt6, chạy mô phỏng qua TCP và kiểm chứng kết quả trên giao diện UI/Database.
 
 ## Cấu trúc Dự án
 *   `src/`: Thư mục mã nguồn C++ chính của dự án.

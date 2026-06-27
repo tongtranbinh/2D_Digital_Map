@@ -99,6 +99,30 @@ bool AlertRepository::saveZone(AlertZone &zone, QString *error)
 	return true;
 }
 
+bool AlertRepository::deleteZone(const QUuid &id, QString *error)
+{
+	if (id.isNull()) {
+		return true;
+	}
+
+	if (!m_connection.isOpen() && !m_connection.open(error)) {
+		return false;
+	}
+
+	QSqlQuery query(m_connection.database());
+	query.prepare(R"(
+		DELETE FROM app.alert_zones
+		WHERE id = CAST(:id AS uuid)
+	)");
+	query.bindValue(QStringLiteral(":id"), uuidToString(id));
+
+	if (!query.exec()) {
+		return setError(error, query);
+	}
+
+	return true;
+}
+
 std::optional<AlertZone> AlertRepository::findZoneById(const QUuid &id, QString *error) const
 {
 	if (id.isNull()) {

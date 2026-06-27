@@ -38,6 +38,9 @@ public slots:
     // Xử lý yêu cầu ghi vùng cảnh báo mới xuống CSDL PostgreSQL từ UI thread
     void handleSaveZoneRequest(const AlertZone &zone);
 
+    // Xử lý yêu cầu xóa vùng cảnh báo khỏi CSDL PostgreSQL từ UI thread
+    void handleDeleteZoneRequest(const QUuid &zoneId);
+
 signals:
     void dbErrorOccurred(const QString &error);
     void batchProcessed(int count);

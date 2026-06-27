@@ -13,6 +13,26 @@ bool AlertService::saveZone(AlertZone &zone, QString *error)
     return m_repository.saveZone(zone, error);
 }
 
+bool AlertService::deleteZone(const QUuid &id, QString *error)
+{
+    m_zonesLoaded = false;
+    m_zonesCache.clear();
+    if (m_repository.deleteZone(id, error)) {
+        if (m_statesLoaded) {
+            QString idStr = id.toString();
+            for (auto it = m_shipZoneStates.begin(); it != m_shipZoneStates.end(); ) {
+                if (it.key().endsWith(idStr)) {
+                    it = m_shipZoneStates.erase(it);
+                } else {
+                    ++it;
+                }
+            }
+        }
+        return true;
+    }
+    return false;
+}
+
 std::optional<AlertZone> AlertService::getZoneById(const QUuid &id, QString *error) const
 {
     return m_repository.findZoneById(id, error);
