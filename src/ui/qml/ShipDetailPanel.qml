@@ -84,12 +84,24 @@ Rectangle {
 
             RowLayout {
                 anchors.centerIn: parent
-                spacing: 6
+                spacing: 8
+
+                Rectangle {
+                    width: 10
+                    height: 10
+                    radius: 5
+                    color: root.isInsideZone ? "#ef4444" : "#10b981" // Đỏ sáng hoặc Xanh lục Emerald
+                    border.color: root.isInsideZone ? "#fecaca" : "#d1fae5"
+                    border.width: 1.5
+                    Layout.alignment: Qt.AlignVCenter
+                }
+
                 Text {
-                    text: isInsideZone ? "⚠️ ĐANG TRONG VÙNG CẢNH BÁO" : "✅ TRẠNG THÁI AN TOÀN"
-                    color: isInsideZone ? "#fecaca" : "#d1fae5"
+                    text: root.isInsideZone ? "ĐANG TRONG VÙNG CẢNH BÁO" : "TRẠNG THÁI AN TOÀN"
+                    color: root.isInsideZone ? "#fecaca" : "#d1fae5"
                     font.bold: true
                     font.pixelSize: 11
+                    Layout.alignment: Qt.AlignVCenter
                 }
             }
         }

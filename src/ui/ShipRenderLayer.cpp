@@ -87,6 +87,17 @@ void ShipRenderLayer::setShowLabels(bool showLabels)
     update();
 }
 
+void ShipRenderLayer::setSelectedShipId(const QString &shipId)
+{
+    if (m_selectedShipId == shipId) {
+        return;
+    }
+
+    m_selectedShipId = shipId;
+    emit selectedShipIdChanged();
+    refresh();
+}
+
 int ShipRenderLayer::roleForName(const QHash<int, QByteArray> &roles, const QByteArray &name)
 {
     for (auto it = roles.cbegin(); it != roles.cend(); ++it) {
@@ -106,16 +117,17 @@ QPointF ShipRenderLayer::mapToPixel(double latitude, double longitude) const
     QPointF pixel;
     const QGeoCoordinate coordinate(latitude, longitude);
     const bool ok = QMetaObject::invokeMethod(m_mapObject, "fromCoordinate",
-                                              Q_RETURN_ARG(QPointF, pixel),
-                                              Q_ARG(QGeoCoordinate, coordinate),
-                                              Q_ARG(bool, false));
+                                               Q_RETURN_ARG(QPointF, pixel),
+                                               Q_ARG(QGeoCoordinate, coordinate),
+                                               Q_ARG(bool, false));
     return ok ? pixel : QPointF(qQNaN(), qQNaN());
 }
 
 void ShipRenderLayer::appendShip(QVector<QSGGeometry::ColoredPoint2D> &vertices,
                                  const QPointF &center,
                                  double heading,
-                                 const QColor &color) const
+                                 const QColor &color,
+                                 double scale) const
 {
     const double radians = qDegreesToRadians(heading);
     const double sinH = std::sin(radians);
@@ -126,9 +138,12 @@ void ShipRenderLayer::appendShip(QVector<QSGGeometry::ColoredPoint2D> &vertices,
                        center.y() + x * sinH + y * cosH);
     };
 
-    const QPointF nose = rotate(0.0f, -kShipLength * 0.65f);
-    const QPointF left = rotate(-kShipHalfWidth, kShipLength * 0.35f);
-    const QPointF right = rotate(kShipHalfWidth, kShipLength * 0.35f);
+    const float length = kShipLength * scale;
+    const float halfWidth = kShipHalfWidth * scale;
+
+    const QPointF nose = rotate(0.0f, -length * 0.65f);
+    const QPointF left = rotate(-halfWidth, length * 0.35f);
+    const QPointF right = rotate(halfWidth, length * 0.35f);
 
     const unsigned char r = static_cast<unsigned char>(color.red());
     const unsigned char g = static_cast<unsigned char>(color.green());
@@ -158,6 +173,8 @@ void ShipRenderLayer::refresh()
 {
     m_normalVertices.clear();
     m_alertVertices.clear();
+    m_outlineVertices.clear();
+    m_selectedVertices.clear();
     m_visibleShips.clear();
 
     if (!m_shipModel || !m_mapObject || width() <= 0.0 || height() <= 0.0) {
@@ -185,6 +202,7 @@ void ShipRenderLayer::refresh()
 
     const QColor normalColor("#06b6d4");
     const QColor alertColor("#ef4444");
+    const QColor whiteColor("#ffffff");
 
     for (int row = 0; row < rows; ++row) {
         const QModelIndex index = m_shipModel->index(row, 0);
@@ -206,11 +224,21 @@ void ShipRenderLayer::refresh()
         }
 
         const bool alert = alertRole >= 0 && m_shipModel->data(index, alertRole).toBool();
-        QVector<QSGGeometry::ColoredPoint2D> &target = alert ? m_alertVertices : m_normalVertices;
-        appendShip(target, pixel, heading, alert ? alertColor : normalColor);
+        const QString shipId = m_shipModel->data(index, shipIdRole).toString();
+        const bool isSelected = (!m_selectedShipId.isEmpty() && shipId == m_selectedShipId);
+
+        if (isSelected) {
+            // Draw a bright white outline triangle (1.35x size) underneath the ship
+            appendShip(m_outlineVertices, pixel, heading, whiteColor, 1.35);
+            // Draw the normal ship body (1.0x size) on top of the outline
+            appendShip(m_selectedVertices, pixel, heading, alert ? alertColor : normalColor, 1.0);
+        } else {
+            QVector<QSGGeometry::ColoredPoint2D> &target = alert ? m_alertVertices : m_normalVertices;
+            appendShip(target, pixel, heading, alert ? alertColor : normalColor, 1.0);
+        }
 
         RenderShip ship;
-        ship.shipId = m_shipModel->data(index, shipIdRole).toString();
+        ship.shipId = shipId;
         ship.position = pixel;
         ship.alert = alert;
         m_visibleShips.append(ship);
@@ -265,8 +293,22 @@ QSGNode* ShipRenderLayer::updatePaintNode(QSGNode *oldNode, UpdatePaintNodeData 
         root->appendChildNode(alertNode);
     }
 
+    auto *outlineNode = static_cast<QSGGeometryNode *>(alertNode->nextSibling());
+    if (!outlineNode) {
+        outlineNode = updateGroupNode(nullptr, {});
+        root->appendChildNode(outlineNode);
+    }
+
+    auto *selectedNode = static_cast<QSGGeometryNode *>(outlineNode->nextSibling());
+    if (!selectedNode) {
+        selectedNode = updateGroupNode(nullptr, {});
+        root->appendChildNode(selectedNode);
+    }
+
     updateGroupNode(normalNode, m_normalVertices);
     updateGroupNode(alertNode, m_alertVertices);
+    updateGroupNode(outlineNode, m_outlineVertices);
+    updateGroupNode(selectedNode, m_selectedVertices);
 
     return root;
 }

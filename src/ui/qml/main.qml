@@ -10,6 +10,24 @@ ApplicationWindow {
     height: 800
     title: "Hệ thống Bản đồ số Theo dõi Tàu biển 2D - Real-time Ship Tracking"
 
+    function getCardinalDirection(bearing) {
+        var directions = ["Bắc (N)", "Đông Bắc (NE)", "Đông (E)", "Đông Nam (SE)", "Nam (S)", "Tây Nam (SW)", "Tây (W)", "Tây Bắc (NW)"];
+        var index = Math.round(bearing / 45) % 8;
+        return directions[index];
+    }
+
+    function formatDistance(m) {
+        if (m < 1000) {
+            return m.toFixed(1) + " m";
+        }
+        return (m / 1000).toFixed(2) + " km";
+    }
+
+    function formatBearing(deg) {
+        var d = (deg % 360 + 360) % 360;
+        return d.toFixed(1) + "° (" + getCardinalDirection(d) + ")";
+    }
+
     function applyShipDetails(ship) {
         if (!ship || Object.keys(ship).length === 0)
             return false;
@@ -146,21 +164,31 @@ ApplicationWindow {
             AlertBanner {
                 id: alertBanner
             }
-            // Bo dieu khien ve vung canh bao (Drawing Control Panel)
+            // Khung trượt thông tin / nhập liệu cho công cụ đang hoạt động (Vẽ Geofence hoặc Đo đạc)
             Rectangle {
                 id: drawingPanel
                 width: 280
-                height: mapView.isDrawingMode ? 280 : 70
-                anchors.left: parent.left
-                anchors.top: parent.top
-                anchors.leftMargin: 20
-                anchors.topMargin: 20
+                height: mapView.isDrawingMode ? 250 : 
+                        (mapView.isMeasureMode ? 
+                            (mapView.measureStart !== null && (mapView.measureEnd !== null || mapView.hoverCoordinate !== null) ? 230 : 130) 
+                            : 0)
+                anchors.right: toolsToolbar.left
+                anchors.top: toolsToolbar.top
+                anchors.rightMargin: 12
                 z: 1000
                 radius: 8
                 color: "#1e293b" // Slate 800
-                border.color: "#334155" // Slate 700
+                border.color: mapView.isDrawingMode ? "#3b82f6" : "#f43f5e" // Xanh dương hoặc Hồng đỏ tùy chế độ
                 border.width: 1
                 opacity: 0.95
+                visible: mapView.isDrawingMode || mapView.isMeasureMode
+
+                // Chặn click truyền xuống bản đồ phía dưới
+                MouseArea {
+                    anchors.fill: parent
+                    propagateComposedEvents: false
+                    onPressed: (mouse) => mouse.accepted = true
+                }
 
                 // Hiệu ứng đổ bóng mờ
                 layer.enabled: true
@@ -168,35 +196,17 @@ ApplicationWindow {
                 ColumnLayout {
                     anchors.fill: parent
                     anchors.margins: 14
-                    spacing: 10
+                    spacing: 8
 
                     Text {
-                        text: mapView.isDrawingMode ? "Vẽ vùng cảnh báo mới" : "Quản lý Geofence"
+                        text: mapView.isDrawingMode ? "Vẽ vùng cảnh báo mới" : "Đo khoảng cách & phương vị"
                         color: "#f8fafc"
                         font.bold: true
                         font.pixelSize: 14
                         Layout.fillWidth: true
                     }
 
-                    // Nút để bắt đầu vẽ vùng mới
-                    Button {
-                        visible: !mapView.isDrawingMode
-                        text: "Thêm vùng cảnh báo"
-                        Layout.fillWidth: true
-                        onClicked: {
-                            mapView.isDrawingMode = true;
-                            mapView.drawingPath = [];
-                            zoneNameInput.text = "";
-                            zoneDescInput.text = "";
-                        }
-                        background: Rectangle {
-                            color: "#3b82f6" // Xanh dương
-                            radius: 4
-                        }
-                        palette.buttonText: "#ffffff"
-                    }
-
-                    // Form nhập liệu và điều khiển khi vẽ vùng
+                    // Form nhập liệu và điều khiển khi vẽ vùng cảnh báo
                     ColumnLayout {
                         visible: mapView.isDrawingMode
                         Layout.fillWidth: true
@@ -285,6 +295,282 @@ ApplicationWindow {
                             }
                         }
                     }
+
+                    // Giao diện khi đo đạc khoảng cách và phương vị
+                    ColumnLayout {
+                        visible: mapView.isMeasureMode
+                        Layout.fillWidth: true
+                        spacing: 8
+
+                        Text {
+                            text: "Click trên bản đồ để chọn điểm A và điểm B."
+                            color: "#94a3b8"
+                            font.pixelSize: 10
+                            wrapMode: Text.WordWrap
+                            Layout.fillWidth: true
+                        }
+
+                        // Hiển thị trạng thái toạ độ điểm A và B
+                        Rectangle {
+                            Layout.fillWidth: true
+                            height: 60
+                            radius: 4
+                            color: "#0f172a"
+                            border.color: "#334155"
+
+                            GridLayout {
+                                anchors.fill: parent
+                                anchors.margins: 8
+                                columns: 2
+                                rowSpacing: 4
+                                columnSpacing: 10
+
+                                Text { text: "Điểm A:"; color: "#94a3b8"; font.pixelSize: 11; font.bold: true }
+                                Text { 
+                                    text: mapView.measureStart ? 
+                                          mapView.measureStart.latitude.toFixed(5) + " N, " + mapView.measureStart.longitude.toFixed(5) + " E" : 
+                                          "Chưa chọn"
+                                    color: mapView.measureStart ? "#f43f5e" : "#64748b"
+                                    font.pixelSize: 11
+                                    font.bold: true
+                                }
+
+                                Text { text: "Điểm B:"; color: "#94a3b8"; font.pixelSize: 11; font.bold: true }
+                                Text { 
+                                    text: mapView.measureEnd ? 
+                                          mapView.measureEnd.latitude.toFixed(5) + " N, " + mapView.measureEnd.longitude.toFixed(5) + " E" : 
+                                          (mapView.measureStart && mapView.hoverCoordinate ? "Đang chọn..." : "Chưa chọn")
+                                    color: mapView.measureEnd ? "#f43f5e" : (mapView.measureStart && mapView.hoverCoordinate ? "#38bdf8" : "#64748b")
+                                    font.pixelSize: 11
+                                    font.bold: true
+                                }
+                            }
+                        }
+
+                        // Hiển thị kết quả đo đạc thời gian thực
+                        Rectangle {
+                            Layout.fillWidth: true
+                            height: 65
+                            radius: 4
+                            color: "#1e293b"
+                            border.color: "#f43f5e"
+                            border.width: 1
+                            visible: mapView.measureStart !== null && (mapView.measureEnd !== null || mapView.hoverCoordinate !== null)
+
+                            ColumnLayout {
+                                anchors.fill: parent
+                                anchors.margins: 8
+                                spacing: 4
+
+                                RowLayout {
+                                    Layout.fillWidth: true
+                                    Text { text: "Khoảng cách:"; color: "#94a3b8"; font.pixelSize: 11 }
+                                    Text { 
+                                        text: {
+                                            if (mapView.measureStart === null) return "";
+                                            var end = mapView.measureEnd !== null ? mapView.measureEnd : mapView.hoverCoordinate;
+                                            if (!end) return "";
+                                            var dist = mapView.measureStart.distanceTo(end);
+                                            return formatDistance(dist);
+                                        }
+                                        color: "#f8fafc"
+                                        font.pixelSize: 12
+                                        font.bold: true
+                                    }
+                                }
+
+                                RowLayout {
+                                    Layout.fillWidth: true
+                                    Text { text: "Phương vị:"; color: "#94a3b8"; font.pixelSize: 11 }
+                                    Text { 
+                                        text: {
+                                            if (mapView.measureStart === null) return "";
+                                            var end = mapView.measureEnd !== null ? mapView.measureEnd : mapView.hoverCoordinate;
+                                            if (!end) return "";
+                                            var az = mapView.measureStart.azimuthTo(end);
+                                            return formatBearing(az);
+                                        }
+                                        color: "#38bdf8"
+                                        font.pixelSize: 11
+                                        font.bold: true
+                                    }
+                                }
+                            }
+                        }
+
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: 8
+
+                            Button {
+                                text: "Xóa kết quả"
+                                Layout.fillWidth: true
+                                enabled: mapView.measureStart !== null
+                                onClicked: {
+                                    mapView.measureStart = null;
+                                    mapView.measureEnd = null;
+                                }
+                                background: Rectangle {
+                                    color: parent.enabled ? "#475569" : "#334155"
+                                    radius: 4
+                                }
+                                palette.buttonText: "#ffffff"
+                            }
+
+                            Button {
+                                text: "Đóng"
+                                Layout.fillWidth: true
+                                onClicked: {
+                                    mapView.isMeasureMode = false;
+                                    mapView.measureStart = null;
+                                    mapView.measureEnd = null;
+                                }
+                                background: Rectangle {
+                                    color: "#ef4444"
+                                    radius: 4
+                                }
+                                palette.buttonText: "#ffffff"
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Thanh công cụ nút bấm nổi bên phải (Tools Toolbar)
+            Rectangle {
+                id: toolsToolbar
+                width: 44
+                height: 96
+                anchors.right: parent.right
+                anchors.top: parent.top
+                anchors.topMargin: 80
+                anchors.rightMargin: 20
+                z: 1000
+                radius: 22 // Hình dạng capsule
+                color: "#1e293b" // Slate 800
+                border.color: "#334155" // Slate 700
+                border.width: 1
+                opacity: 0.95
+                layer.enabled: true
+
+                // Chặn click truyền xuống bản đồ phía dưới
+                MouseArea {
+                    anchors.fill: parent
+                    propagateComposedEvents: false
+                    onPressed: (mouse) => mouse.accepted = true
+                }
+
+                ColumnLayout {
+                    anchors.centerIn: parent
+                    spacing: 8
+
+                    // Nút vẽ Geofence
+                    Rectangle {
+                        width: 34
+                        height: 34
+                        radius: 17
+                        color: mapView.isDrawingMode ? "#3b82f6" : "transparent"
+                        border.color: hoverHandlerDraw.hovered ? "#3b82f6" : "transparent"
+                        border.width: 1.5
+                        
+                        // Vector Geofence Polygon Icon (Rotated Diamond shape)
+                        Rectangle {
+                            anchors.centerIn: parent
+                            width: 14
+                            height: 14
+                            color: "transparent"
+                            border.color: mapView.isDrawingMode ? "#ffffff" : "#f8fafc"
+                            border.width: 1.5
+                            rotation: 45
+                        }
+
+                        HoverHandler {
+                            id: hoverHandlerDraw
+                        }
+
+                        MouseArea {
+                            anchors.fill: parent
+                            onClicked: {
+                                if (mapView.isDrawingMode) {
+                                    mapView.isDrawingMode = false;
+                                    mapView.drawingPath = [];
+                                } else {
+                                    mapView.isDrawingMode = true;
+                                    mapView.drawingPath = [];
+                                    mapView.isMeasureMode = false;
+                                    zoneNameInput.text = "";
+                                    zoneDescInput.text = "";
+                                }
+                            }
+                        }
+                        
+                        ToolTip.visible: hoverHandlerDraw.hovered
+                        ToolTip.text: "Vẽ vùng cảnh báo"
+                        ToolTip.delay: 300
+                    }
+
+                    // Nút đo đạc khoảng cách & phương vị
+                    Rectangle {
+                        width: 34
+                        height: 34
+                        radius: 17
+                        color: mapView.isMeasureMode ? "#f43f5e" : "transparent"
+                        border.color: hoverHandlerMeasure.hovered ? "#f43f5e" : "transparent"
+                        border.width: 1.5
+
+                        // Vector Ruler Icon
+                        Item {
+                            anchors.centerIn: parent
+                            width: 20
+                            height: 12
+
+                            Rectangle {
+                                anchors.fill: parent
+                                color: "transparent"
+                                border.color: mapView.isMeasureMode ? "#ffffff" : "#f8fafc"
+                                border.width: 1.5
+                                radius: 1
+
+                                Row {
+                                    anchors.bottom: parent.bottom
+                                    anchors.bottomMargin: 1
+                                    anchors.left: parent.left
+                                    anchors.leftMargin: 3
+                                    spacing: 3
+
+                                    Rectangle { width: 1; height: 3; color: mapView.isMeasureMode ? "#ffffff" : "#f8fafc" }
+                                    Rectangle { width: 1; height: 5; color: mapView.isMeasureMode ? "#ffffff" : "#f8fafc" }
+                                    Rectangle { width: 1; height: 3; color: mapView.isMeasureMode ? "#ffffff" : "#f8fafc" }
+                                    Rectangle { width: 1; height: 5; color: mapView.isMeasureMode ? "#ffffff" : "#f8fafc" }
+                                    Rectangle { width: 1; height: 3; color: mapView.isMeasureMode ? "#ffffff" : "#f8fafc" }
+                                }
+                            }
+                        }
+
+                        HoverHandler {
+                            id: hoverHandlerMeasure
+                        }
+
+                        MouseArea {
+                            anchors.fill: parent
+                            onClicked: {
+                                if (mapView.isMeasureMode) {
+                                    mapView.isMeasureMode = false;
+                                    mapView.measureStart = null;
+                                    mapView.measureEnd = null;
+                                } else {
+                                    mapView.isMeasureMode = true;
+                                    mapView.measureStart = null;
+                                    mapView.measureEnd = null;
+                                    mapView.isDrawingMode = false;
+                                }
+                            }
+                        }
+
+                        ToolTip.visible: hoverHandlerMeasure.hovered
+                        ToolTip.text: "Đo khoảng cách & phương vị"
+                        ToolTip.delay: 300
+                    }
                 }
             }
 
@@ -331,6 +617,134 @@ ApplicationWindow {
                 onTriggered: {
                     detailPanel.visible = false;
                     mapView.selectedShipId = "";
+                }
+            }
+
+            // Hiển thị toạ độ chuột (lat, lon) ở góc trên phải
+            Rectangle {
+                id: coordPanel
+                width: 220
+                height: 40
+                anchors.right: parent.right
+                anchors.top: parent.top
+                anchors.rightMargin: 20
+                anchors.topMargin: 20
+                z: 1000
+                radius: 6
+                color: "#1e293b" // Slate 800
+                border.color: "#334155" // Slate 700
+                border.width: 1
+                opacity: 0.9
+                visible: mapView.hoverCoordinate !== null
+
+                RowLayout {
+                    anchors.fill: parent
+                    anchors.leftMargin: 12
+                    anchors.rightMargin: 12
+                    spacing: 8
+
+                    Text {
+                        text: "📍"
+                        font.pixelSize: 14
+                    }
+
+                    ColumnLayout {
+                        spacing: 1
+                        Layout.alignment: Qt.AlignVCenter
+
+                        Text {
+                            text: "TOẠ ĐỘ CHUỘT"
+                            color: "#94a3b8"
+                            font.pixelSize: 8
+                            font.bold: true
+                        }
+
+                        Text {
+                            text: mapView.hoverCoordinate ? 
+                                  mapView.hoverCoordinate.latitude.toFixed(6) + " N, " + 
+                                  mapView.hoverCoordinate.longitude.toFixed(6) + " E" : 
+                                  "0.000000 N, 0.000000 E"
+                            color: "#38bdf8" // Sky 400
+                            font.pixelSize: 11
+                            font.bold: true
+                        }
+                    }
+                }
+            }
+
+            // Hiển thị và điều chỉnh Zoom Level bằng thanh trượt ở góc dưới phải
+            Rectangle {
+                id: zoomPanel
+                width: 180
+                height: 70
+                anchors.right: parent.right
+                anchors.bottom: parent.bottom
+                anchors.rightMargin: 20
+                anchors.bottomMargin: 20
+                z: 1000
+                radius: 6
+                color: "#1e293b" // Slate 800
+                border.color: "#334155" // Slate 700
+                border.width: 1
+                opacity: 0.9
+
+                ColumnLayout {
+                    anchors.fill: parent
+                    anchors.margins: 10
+                    spacing: 4
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        Text {
+                            text: "Zoom: " + (mapView.mapObj ? mapView.mapObj.zoomLevel.toFixed(1) : "0.0")
+                            color: "#10b981" // Emerald 500
+                            font.pixelSize: 11
+                            font.bold: true
+                        }
+                    }
+
+                    Slider {
+                        id: zoomSlider
+                        Layout.fillWidth: true
+                        from: 3
+                        to: 18
+                        value: mapView.mapObj ? mapView.mapObj.zoomLevel : 6
+                        onMoved: {
+                            if (mapView.mapObj) {
+                                mapView.mapObj.zoomLevel = value;
+                            }
+                        }
+
+                        // Tùy biến giao diện thanh trượt
+                        background: Rectangle {
+                            x: zoomSlider.leftPadding
+                            y: zoomSlider.topPadding + zoomSlider.availableHeight / 2 - height / 2
+                            implicitWidth: 150
+                            implicitHeight: 4
+                            width: zoomSlider.availableWidth
+                            height: implicitHeight
+                            radius: 2
+                            color: "#334155" // Slate 700
+
+                            Rectangle {
+                                width: zoomSlider.visualPosition * parent.width
+                                height: parent.height
+                                color: "#10b981" // Emerald 500
+                                radius: 2
+                            }
+                        }
+
+                        handle: Rectangle {
+                            x: zoomSlider.leftPadding + zoomSlider.visualPosition * (zoomSlider.availableWidth - width)
+                            y: zoomSlider.topPadding + zoomSlider.availableHeight / 2 - height / 2
+                            implicitWidth: 12
+                            implicitHeight: 12
+                            radius: 6
+                            color: "#ffffff"
+                            border.color: "#10b981"
+                            border.width: 1.5
+                        }
+                    }
                 }
             }
         }

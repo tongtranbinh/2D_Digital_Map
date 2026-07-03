@@ -1,8 +1,10 @@
 #include "ShipWorker.h"
 #include "../state/ShipStateStore.h"
 #include <QDebug>
+#include <QElapsedTimer>
 #include <QSqlDatabase>
 #include <QSqlError>
+#include <QSqlQuery>
 
 ShipWorker::ShipWorker(PostgresConfig dbConfig, ShipStateStore &stateStore, QObject *parent)
     : QObject(parent), m_config(std::move(dbConfig)), m_stateStore(stateStore)
@@ -16,6 +18,11 @@ ShipWorker::~ShipWorker()
 
 void ShipWorker::cleanup()
 {
+    if (m_cleanupTimer) {
+        m_cleanupTimer->stop();
+        delete m_cleanupTimer;
+        m_cleanupTimer = nullptr;
+    }
     delete m_shipService;  m_shipService = nullptr;
     delete m_posService;   m_posService = nullptr;
     delete m_alertService; m_alertService = nullptr;
@@ -67,6 +74,15 @@ void ShipWorker::initialize()
         }
     }
     emit cachePreloaded();
+
+    // Khởi tạo timer dọn dẹp hàng ngày (5 phút kiểm tra một lần)
+    if (!m_cleanupTimer) {
+        m_cleanupTimer = new QTimer(this);
+        connect(m_cleanupTimer, &QTimer::timeout, this, &ShipWorker::performDailyCleanup);
+        m_cleanupTimer->start(300000); // 5 phút
+    }
+    // Chạy dọn dẹp một lần lúc khởi động
+    QMetaObject::invokeMethod(this, &ShipWorker::performDailyCleanup, Qt::QueuedConnection);
 }
 
 void ShipWorker::savePendingPackets(const QVector<ShipMessage> &packets, const QVector<AlertEvent> &alertEvents)
@@ -84,6 +100,9 @@ void ShipWorker::savePendingPackets(const QVector<ShipMessage> &packets, const Q
         return;
     }
 
+    QElapsedTimer transactionTimer;
+    transactionTimer.start();
+
     // Bắt đầu một Transaction để tối ưu tối đa hiệu năng ghi hàng loạt
     QSqlDatabase db = m_db->database();
     db.transaction();
@@ -91,6 +110,7 @@ void ShipWorker::savePendingPackets(const QVector<ShipMessage> &packets, const Q
     QString dbError;
 
     // 1. Kiểm tra sự tồn tại của các tàu qua RAM cache (và insert nếu chưa có)
+    int newShipsCount = 0;
     for (const ShipMessage &msg : packets) {
         if (!m_shipService->shipExists(msg.shipId, &dbError)) {
             Vessel newVessel;
@@ -103,8 +123,12 @@ void ShipWorker::savePendingPackets(const QVector<ShipMessage> &packets, const Q
                 emit dbErrorOccurred(QStringLiteral("Batch transaction rolled back: %1").arg(dbError));
                 return;
             }
+            newShipsCount++;
         }
     }
+
+    QElapsedTimer batchInsertTimer;
+    batchInsertTimer.start();
 
     // 2. Ghi hàng loạt vị trí xuống DB (Batch Insert)
     if (!packets.isEmpty()) {
@@ -115,6 +139,8 @@ void ShipWorker::savePendingPackets(const QVector<ShipMessage> &packets, const Q
             return;
         }
     }
+
+    qint64 batchInsertTimeMs = batchInsertTimer.elapsed();
 
     // 3. Ghi các sự kiện cảnh báo (Alert Event) và lưu trạng thái vào CSDL
     for (const AlertEvent &event : alertEvents) {
@@ -138,9 +164,23 @@ void ShipWorker::savePendingPackets(const QVector<ShipMessage> &packets, const Q
     // Commit toàn bộ bản ghi xuống ổ cứng
     db.commit();
     int successCount = packets.size();
-    qInfo() << QStringLiteral("[ShipWorker] Batch transaction successfully committed. Saved %1 vessel records and %2 alert events.")
-               .arg(successCount)
-               .arg(alertEvents.size());
+    
+    qint64 totalTransactionTimeMs = transactionTimer.elapsed();
+    int totalRecords = successCount + alertEvents.size();
+    double throughput = totalTransactionTimeMs > 0 ? (totalRecords * 1000.0 / totalTransactionTimeMs) : 0.0;
+
+    qInfo().noquote() << QStringLiteral("[PERF][DB] Committed batch transaction:\n"
+                                        "  * DB Commit:  %1 ms total (Registered %2 new vessels)\n"
+                                        "  * Batch Pos:  %3 ms for %4 positions (Avg: %5 ms/pos)\n"
+                                        "  * Alerts:      Saved %6 alert events\n"
+                                        "  * Throughput:  %7 records/sec")
+                       .arg(totalTransactionTimeMs)
+                       .arg(newShipsCount)
+                       .arg(batchInsertTimeMs)
+                       .arg(successCount)
+                       .arg(successCount > 0 ? QString::number((double)batchInsertTimeMs / successCount, 'f', 3) : "0.000")
+                       .arg(alertEvents.size())
+                       .arg(totalTransactionTimeMs > 0 ? QString::number(throughput, 'f', 1) : "N/A");
 
     emit batchProcessed(successCount);
 }
@@ -162,6 +202,34 @@ void ShipWorker::handleTrackHistoryRequest(const QUuid &vesselId)
         qWarning() << "[ShipWorker] Failed to load position history for ship" << vesselId.toString() << ":" << error;
     }
     emit trackHistoryLoaded(vesselId, history);
+}
+
+void ShipWorker::performDailyCleanup()
+{
+    QDate today = QDate::currentDate();
+    if (m_lastCleanupDate == today) {
+        return; // Đã dọn dẹp hôm nay rồi
+    }
+
+    if (!m_db) {
+        initialize();
+    }
+
+    if (!m_db || (!m_db->isOpen() && !m_db->open())) {
+        qWarning() << "[ShipWorker] DB connection not open, cannot run daily cleanup";
+        return;
+    }
+
+    QSqlDatabase db = m_db->database();
+    QSqlQuery query(db);
+
+    // Xóa vị trí lưu trữ cũ hơn 1 ngày
+    if (query.exec(QStringLiteral("DELETE FROM app.positions WHERE recorded_at < NOW() - INTERVAL '1 day';"))) {
+        qInfo() << "[ShipWorker] Daily cleanup successful: deleted positions older than 1 day.";
+        m_lastCleanupDate = today;
+    } else {
+        qWarning() << "[ShipWorker] Daily cleanup failed:" << query.lastError().text();
+    }
 }
 
 void ShipWorker::handleSaveZoneRequest(const AlertZone &zone)

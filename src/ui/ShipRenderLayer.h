@@ -16,6 +16,7 @@ class ShipRenderLayer : public QQuickItem
     Q_PROPERTY(QObject* mapObject READ mapObject WRITE setMapObject NOTIFY mapObjectChanged)
     Q_PROPERTY(double zoomLevel READ zoomLevel WRITE setZoomLevel NOTIFY zoomLevelChanged)
     Q_PROPERTY(bool showLabels READ showLabels WRITE setShowLabels NOTIFY showLabelsChanged)
+    Q_PROPERTY(QString selectedShipId READ selectedShipId WRITE setSelectedShipId NOTIFY selectedShipIdChanged)
 
 public:
     explicit ShipRenderLayer(QQuickItem *parent = nullptr);
@@ -33,6 +34,9 @@ public:
     bool showLabels() const { return m_showLabels; }
     void setShowLabels(bool showLabels);
 
+    QString selectedShipId() const { return m_selectedShipId; }
+    void setSelectedShipId(const QString &shipId);
+
     Q_INVOKABLE void refresh();
 
 signals:
@@ -40,6 +44,7 @@ signals:
     void mapObjectChanged();
     void zoomLevelChanged();
     void showLabelsChanged();
+    void selectedShipIdChanged();
     void shipClicked(const QString &shipId);
 
 protected:
@@ -59,7 +64,8 @@ private:
     void appendShip(QVector<QSGGeometry::ColoredPoint2D> &vertices,
                     const QPointF &center,
                     double heading,
-                    const QColor &color) const;
+                    const QColor &color,
+                    double scale = 1.0) const;
     QSGGeometryNode* updateGroupNode(QSGGeometryNode *node,
                                      const QVector<QSGGeometry::ColoredPoint2D> &vertices);
 
@@ -69,8 +75,12 @@ private:
 
     double m_zoomLevel = 0.0;
     bool m_showLabels = false;
+    QString m_selectedShipId;
 
     QVector<QSGGeometry::ColoredPoint2D> m_normalVertices;
     QVector<QSGGeometry::ColoredPoint2D> m_alertVertices;
+    QVector<QSGGeometry::ColoredPoint2D> m_outlineVertices;
+    QVector<QSGGeometry::ColoredPoint2D> m_selectedVertices;
     QVector<RenderShip> m_visibleShips;
 };
+

@@ -46,4 +46,8 @@ private:
     QVector<AlertEvent> m_pendingAlertEvents;
     QTimer *m_timer{nullptr};
     QTimer *m_batchTimer{nullptr};
+
+    // Performance measurements
+    int m_parsedCount{0};
+    double m_accumulatedParseTimeMs{0.0};
 };

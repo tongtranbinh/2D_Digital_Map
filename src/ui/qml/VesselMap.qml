@@ -26,16 +26,58 @@ MapView {
     property bool isDrawingMode: false
     property var drawingPath: []
 
+    // Toạ độ của chuột đang hover trên bản đồ
+    property var hoverCoordinate: null
+
+    // Chế độ đo khoảng cách và phương vị
+    property bool isMeasureMode: false
+    property var measureStart: null
+    property var measureEnd: null
+
+    // Đường dẫn hiển thị khi đo đạc
+    property var measurePath: {
+        if (measureStart === null) return [];
+        if (measureEnd !== null) return [measureStart, measureEnd];
+        if (hoverCoordinate !== null) return [measureStart, hoverCoordinate];
+        return [measureStart];
+    }
+
     // Tín hiệu khi click vào bản đồ
     signal mapClicked(var coordinate)
 
-    // Nhận diện click chuột trên bản đồ để thêm điểm đa giác
+    // Nhận diện click chuột trên bản đồ để thêm điểm đa giác hoặc đo đạc
     TapHandler {
         id: mapTapHandler
         acceptedButtons: Qt.LeftButton
         onTapped: (eventPoint, button) => {
             var coord = root.map.toCoordinate(eventPoint.position);
-            root.mapClicked(coord);
+            if (root.isMeasureMode) {
+                if (root.measureStart === null) {
+                    root.measureStart = coord;
+                } else if (root.measureEnd === null) {
+                    root.measureEnd = coord;
+                } else {
+                    root.measureStart = coord;
+                    root.measureEnd = null;
+                }
+            } else {
+                root.mapClicked(coord);
+            }
+        }
+    }
+
+    // MouseArea để theo dõi toạ độ hover của chuột
+    MouseArea {
+        id: mapHoverArea
+        anchors.fill: parent
+        hoverEnabled: true
+        acceptedButtons: Qt.NoButton
+        propagateComposedEvents: true
+        onPositionChanged: (mouse) => {
+            root.hoverCoordinate = root.map.toCoordinate(Qt.point(mouse.x, mouse.y));
+        }
+        onExited: {
+            root.hoverCoordinate = null;
         }
     }
 
@@ -143,16 +185,75 @@ MapView {
         }
     }
 
+    // 2d. Vẽ Đường đo khoảng cách & phương vị
+    MapPolyline {
+        parent: root.map
+        line.color: "#f43f5e" // Rose 500
+        line.width: 3.5
+        path: root.measurePath
+        visible: root.isMeasureMode && path.length > 1
+    }
+
+    // 2e. Điểm bắt đầu đo A
+    MapQuickItem {
+        parent: root.map
+        coordinate: root.measureStart !== null ? root.measureStart : QtPositioning.coordinate(0,0)
+        visible: root.isMeasureMode && root.measureStart !== null
+        anchorPoint: Qt.point(9, 9)
+        sourceItem: Rectangle {
+            width: 18
+            height: 18
+            radius: 9
+            color: "#f43f5e"
+            border.color: "#ffffff"
+            border.width: 2
+            
+            Text {
+                anchors.centerIn: parent
+                text: "A"
+                color: "#ffffff"
+                font.pixelSize: 10
+                font.bold: true
+            }
+        }
+    }
+
+    // 2f. Điểm kết thúc đo B
+    MapQuickItem {
+        parent: root.map
+        coordinate: root.measureEnd !== null ? root.measureEnd : QtPositioning.coordinate(0,0)
+        visible: root.isMeasureMode && root.measureEnd !== null
+        anchorPoint: Qt.point(9, 9)
+        sourceItem: Rectangle {
+            width: 18
+            height: 18
+            radius: 9
+            color: "#f43f5e"
+            border.color: "#ffffff"
+            border.width: 2
+
+            Text {
+                anchors.centerIn: parent
+                text: "B"
+                color: "#ffffff"
+                font.pixelSize: 10
+                font.bold: true
+            }
+        }
+    }
+
     // 3. Vẽ toàn bộ tàu bằng một Scene Graph layer thay vì MapQuickItem từng tàu
     ShipRenderLayer {
         id: shipLayer
         parent: root.map
         anchors.fill: parent
         z: 100
+        enabled: !root.isMeasureMode
         mapObject: root.map
         shipModel: mapController.shipModel
         zoomLevel: root.map.zoomLevel
         showLabels: root.map.zoomLevel >= 10
+        selectedShipId: root.selectedShipId
 
         onShipClicked: function(shipId) {
             root.selectedShipId = shipId;

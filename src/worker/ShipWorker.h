@@ -12,6 +12,9 @@
 #include "../service/PositionService.h"
 #include "../service/AlertService.h"
 
+#include <QDate>
+#include <QTimer>
+
 class ShipStateStore;
 
 class ShipWorker : public QObject
@@ -41,6 +44,10 @@ public slots:
     // Xử lý yêu cầu xóa vùng cảnh báo khỏi CSDL PostgreSQL từ UI thread
     void handleDeleteZoneRequest(const QUuid &zoneId);
 
+private slots:
+    // Tự động dọn dẹp lịch sử hành trình định kỳ cuối ngày
+    void performDailyCleanup();
+
 signals:
     void dbErrorOccurred(const QString &error);
     void batchProcessed(int count);
@@ -59,4 +66,7 @@ private:
     IShipService *m_shipService{nullptr};
     IPositionService *m_posService{nullptr};
     IAlertService *m_alertService{nullptr};
+
+    QDate m_lastCleanupDate;
+    QTimer *m_cleanupTimer{nullptr};
 };
